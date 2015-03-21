@@ -1,0 +1,803 @@
+
+
+
+
+
+
+                                          BASE DE DATOS DE
+                                       RESULTADOS ELECTORALES
+
+
+
+
+
+
+
+
+
+
+                                              FICHEROS
+                                              DE DATOS
+                                                 DE
+                                              PROCESOS
+                                            ELECTORALES
+
+
+
+
+
+                       CARACTERISTICAS GENERALES DE LOS FICHEROS DE DATOS DE
+                   PROCESOS ELECTORALES (BASE DE DATOS DE RESULTADOS ELECTORALES)
+
+Todos los ficheros están definidos  con  registros  de  longitud  fija  y  formato  texto  (con
+delimitador de registro CR+LF), usando el set de  caracteres  ANSI  (utilizado  por  WINDOWS  y
+UNIX).
+
+Los distintos campos que componen cada registro tienen la siguiente estructura:
+    • Si son numéricos, están ajustados a la derecha y completados con ceros por la izquierda.
+    • Si son alfanuméricos, están ajustados a la izquierda  y  completados  con  blancos  a  la
+      derecha.
+
+El nombre de los ficheros es el siguiente:
+      nnxxaamm.dat
+donde
+
+  nn = Código identificativo del tipo de fichero. Estos códigos son los siguientes:
+      01 = Fichero de control.
+      02 = Fichero de identificación del proceso electoral.
+      03 = Fichero de candidaturas.
+      04 = Fichero de candidatos.
+      05 = Fichero de datos globales de ámbito municipal.
+      06 = Fichero de datos de candidaturas de ámbito municipal.
+      07 = Fichero de datos globales de ámbito superior al municipio.
+      08 = Fichero de datos de candidaturas de ámbito superior al municipio.
+      09 = Fichero de datos globales de mesas.
+      10 = Fichero de datos de candidaturas de mesas.
+      11 = Fichero de datos globales de municipios menores de  250  habitantes  (en  elecciones
+      municipales).
+      12 = Fichero de datos de  candidaturas  de  municipios  menores  de  250  habitantes  (en
+      elecciones municipales).
+
+  xx = Tipo de proceso electoral:
+      01 = Referéndum.
+      02 = Elecciones al Congreso de los Diputados.
+      03 = Elecciones al Senado.
+      04 = Elecciones Municipales.
+      05 = Elecciones Autonómicas.
+      06 = Elecciones a Cabildos Insulares.
+      07 = Elecciones al Parlamento Europeo.
+      10 = Elecciones a Partidos Judiciales y Diputaciones Provinciales.
+      15 = Elecciones a Juntas Generales.
+
+  aa = Dos últimas cifras del año de celebración del proceso electoral.
+
+  mm = Dos dígitos correspondientes al mes de celebración del proceso electoral.
+
+  dat = Es siempre la extensión de los ficheros.
+
+Los ficheros obligatorios en todos los procesos electorales son 01xxaamm.dat y 02xxaamm.dat
+
+Además de los dos anteriores, cada proceso debe tener los siguientes ficheros:
+
+    • Referéndum:
+      0501aamm.dat
+      0701aamm.dat
+      0901aamm.dat
+
+    • Elecciones al Congreso de los Diputados:
+      0302aamm.dat
+      0402aamm.dat
+      0502aamm.dat
+      0602aamm.dat
+      0702aamm.dat
+      0802aamm.dat
+      0902aamm.dat
+      1002aamm.dat
+
+    • Elecciones al Senado:
+      0303aamm.dat
+      0403aamm.dat
+      0503aamm.dat
+      0603aamm.dat
+      0703aamm.dat
+      0803aamm.dat
+      0903aamm.dat
+      1003aamm.dat
+
+    • Elecciones Municipales (que incluye Partidos Judiciales y Diputaciones Provinciales):
+      0304aamm.dat
+      0404aamm.dat
+      0504aamm.dat
+      0604aamm.dat
+      0704aamm.dat
+      0804aamm.dat
+      0904aamm.dat
+      1004aamm.dat
+      1104aamm.dat
+      1204aamm.dat
+      0510aamm.dat (Datos de Partidos Judiciales)
+      0610aamm.dat (Datos de Partidos Judiciales)
+      0710aamm.dat (Datos de Diputaciones Provinciales)
+      0810aamm.dat (Datos de Diputaciones Provinciales)
+
+    • Elecciones Autonómicas:
+      0305aamm.dat
+      0405aamm.dat
+      0505aamm.dat
+      0605aamm.dat
+      0705aamm.dat
+      0805aamm.dat
+      0905aamm.dat
+      1005aamm.dat
+
+    • Elecciones a Cabildos Insulares:
+      0306aamm.dat
+      0406aamm.dat
+      0506aamm.dat
+      0606aamm.dat
+      0706aamm.dat
+      0806aamm.dat
+      0906aamm.dat
+      1006aamm.dat
+
+    • Elecciones al Parlamento Europeo:
+      0307aamm.dat
+      0407aamm.dat
+      0507aamm.dat
+      0607aamm.dat
+      0707aamm.dat
+      0807aamm.dat
+      0907aamm.dat
+      1007aamm.dat
+
+    • Elecciones a Juntas Generales:
+      0315aamm.dat
+      0415aamm.dat
+      0515aamm.dat
+      0615aamm.dat
+      0715aamm.dat
+      0815aamm.dat
+      0915aamm.dat
+      1015aamm.dat
+
+Los códigos de las distintas Comunidades Autónomas son los siguientes:
+      01 = Andalucía
+      02 = Aragón
+      03 = Asturias
+      04 = Baleares
+      05 = Canarias
+      06 = Cantabria
+      07 = Castilla - La Mancha
+      08 = Castilla y León
+      09 = Cataluña
+      10 = Extremadura
+      11 = Galicia
+      12 = Madrid
+      13 = Navarra
+      14 = País Vasco
+      15 = Región de Murcia
+      16 = La Rioja
+      17 = Comunidad Valenciana
+      18 = Ceuta
+      19 = Melilla
+
+Los campos ‘Provincia’ (dos dígitos) y ‘Municipio’ (tres dígitos) están codificados de  acuerdo
+con el nomenclator del I.N.E., excepto en los casos especiales que se indican en la descripción
+correspondiente de los distintos ficheros.
+
+Los códigos de los Distritos Electorales, en función del tipo de elección, son los siguientes:
+
+    • Elecciones al Senado:
+
+      07 = BALEARES
+             1 = MALLORCA
+             2 = MENORCA
+             3 = IBIZA-FORMENTERA
+
+      35 = LAS PALMAS
+             1 = GRAN CANARIA
+             2 = LANZAROTE
+             3 = FUERTEVENTURA
+
+      38 = SANTA CRUZ DE TENERIFE
+             4 = TENERIFE
+             5 = LA PALMA
+             6 = LA GOMERA
+             7 = EL HIERRO
+
+    • Elecciones Autonómicas:
+
+      07 = BALEARES
+             1 = MALLORCA
+             2 = MENORCA
+             3 = IBIZA
+             4 = FORMENTERA
+
+      30 = MURCIA
+             1 = PRIMERA
+             2 = SEGUNDA
+             3 = TERCERA
+             4 = CUARTA
+             5 = QUINTA
+
+      33 = ASTURIAS
+             1 = ORIENTE
+             2 = CENTRO
+             3 = OCCIDENTE
+
+      35 = LAS PALMAS
+             1 = GRAN CANARIA
+             2 = LANZAROTE
+             3 = FUERTEVENTURA
+
+      38 = SANTA CRUZ DE TENERIFE
+             4 = TENERIFE
+             5 = LA PALMA
+             6 = LA GOMERA
+             7 = EL HIERRO
+
+    • Elecciones a Cabildos Insulares:
+
+      35 = LAS PALMAS
+             1 = GRAN CANARIA
+             2 = LANZAROTE
+             3 = FUERTEVENTURA
+
+      38 = SANTA CRUZ DE TENERIFE
+             4 = TENERIFE
+             5 = LA PALMA
+             6 = LA GOMERA
+             7 = EL HIERRO
+
+    • Elecciones a Juntas Generales:
+
+      01 = ALAVA
+             1 = VITORIA-GASTEIZ
+             2 = AIRA-AYALA
+             3 = RESTO
+
+      20 = GUIPUZCOA
+             1 = DEBA-UROLA
+             2 = BIDASOA-OYARZUN
+             3 = DONOSTIALDEA
+             4 = ORIA
+
+      48 = VIZCAYA
+             1 = BILBAO
+             2 = ENCARTACIONES
+             3 = DURANGO-ARRATIA
+             4 = BUSTURIA-URIBE
+
+En el caso de  un  proceso  electoral  a  doble  vuelta,  la  fecha  identificativa  del  mismo
+corresponde a la de la primera vuelta, llevando todos los registros de datos el año  y  mes  de
+dicha fecha, independientemente de la vuelta a que correspondan.
+
+Se consideran “Datos Oficiales” solo y exclusivamente los publicados en  medios  oficiales  por
+las Juntas Electorales.
+
+A continuación, se describe el formato de los distintos ficheros.
+
+|01xxaamm.DAT                                                                                  |
+|1.- Fichero de CONTROL de los ficheros que componen el proceso electoral.                     |
+|Posiciones       |Datos                                                                       |
+|Inicio  |Fin     |Tipo    |Long.   |Descripción                                               |
+|1       |2       |Num.    |2       |Tipo de elección.                                         |
+|3       |6       |Num.    |4       |Año del proceso electoral.                                |
+|7       |8       |Num.    |2       |Mes del proceso electoral.                                |
+|9       |9       |Num.    |1       |Número de vuelta.                                         |
+|        |        |        |        |(en procesos a una sola vuelta o Referéndum = 1).         |
+|10      |10      |Num.    |1       |Siempre 1 (se adjunta fichero 01xxaamm.dat).              |
+|11      |11      |Num.    |1       |1/0 (se adjunta/no se adjunta el fichero 02xxaamm.dat).   |
+|12      |12      |Num.    |1       |1/0 (se adjunta/no se adjunta el fichero 03xxaamm.dat).   |
+|13      |13      |Num.    |1       |1/0 (se adjunta/no se adjunta el fichero 04xxaamm.dat).   |
+|14      |14      |Num.    |1       |1/0 (se adjunta/no se adjunta el fichero 05xxaamm.dat).   |
+|15      |15      |Num.    |1       |1/0 (se adjunta/no se adjunta el fichero 06xxaamm.dat).   |
+|16      |16      |Num.    |1       |1/0 (se adjunta/no se adjunta el fichero 07xxaamm.dat).   |
+|17      |17      |Num.    |1       |1/0 (se adjunta/no se adjunta el fichero 08xxaamm.dat).   |
+|18      |18      |Num.    |1       |1/0 (se adjunta/no se adjunta el fichero 09xxaamm.dat).   |
+|19      |19      |Num.    |1       |1/0 (se adjunta/no se adjunta el fichero 10xxaamm.dat).   |
+|20      |20      |Num.    |1       |1/0 (se adjunta/no se adjunta el fichero 1104aamm.dat).   |
+|21      |21      |Num.    |1       |1/0 (se adjunta/no se adjunta el fichero 1204aamm.dat).   |
+|22      |22      |Num.    |1       |1/0 (se adjunta/no se adjunta el fichero 0510aamm.dat).   |
+|23      |23      |Num.    |1       |1/0 (se adjunta/no se adjunta el fichero 0610aamm.dat).   |
+|24      |24      |Num.    |1       |1/0 (se adjunta/no se adjunta el fichero 0710aamm.dat).   |
+|25      |25      |Num.    |1       |1/0 (se adjunta/no se adjunta el fichero 0810aamm.dat).   |
+|OBSERVACIONES:                                                                                |
+|Este formato es común para los distintos procesos, los cuales se distinguen por los caracteres|
+|“xx” del nombre del fichero y por el contenido del campo “Tipo de elección” (columnas 1-2) que|
+|serán idénticos y se ajustarán a los siguientes:                                              |
+|01 = Referéndum                                                                               |
+|02 = Congreso                                                                                 |
+|03 = Senado                                                                                   |
+|04 = Municipales, Partidos Judiciales y Diputaciones Provinciales                             |
+|05 = Autonómicas                                                                              |
+|06 = Cabildos Insulares                                                                       |
+|07 = Parlamento Europeo                                                                       |
+|15 = Juntas Generales.                                                                        |
+|El campo “Número de vuelta” (columna 9) indicará lo siguiente en función del tipo de proceso  |
+|electoral:                                                                                    |
+|Número de vuelta en todos los tipos de elecciones                                             |
+|En Referéndum, siempre llevará un 1.                                                          |
+|Por cada tipo de proceso electoral se creará un juego completo de sus ficheros, teniendo en   |
+|cuenta que un “Referéndum multipregunta” es un solo proceso y que si se celebran              |
+|simultáneamente dos “Referéndum” de distinto ámbito (uno “Nacional” y otro “Autonómico”, se   |
+|crearán dos juegos de ficheros. Sin embargo, si se incluirán en el mismo juego de ficheros los|
+|“Referéndum” de tipo “Autonómico” celebrados a la vez pero correspondientes a distintas       |
+|Comunidades Autónomas.                                                                        |
+|Si en un mismo mes y año, pero en distinto día, se celebrasen “Referéndum” en el mismo ámbito |
+|territorial, éstos se tomarán como ‘Referéndum multipregunta’ y se incluirán como si se       |
+|tratase de un solo proceso.                                                                   |
+|En el caso de celebración de un Referéndum a nivel autonómico y otro que solo afecte a una    |
+|provincia de la misma autonomía, se deberán considerar como un solo proceso con pregunta      |
+|múltiple.                                                                                     |
+
+|02xxaamm.DAT                                                                                  |
+|2.- Fichero de IDENTIFICACION del proceso electoral.                                          |
+|Posiciones       |Datos                                                                       |
+|Inicio  |Fin     |Tipo    |Long.   |Descripción                                               |
+|1       |2       |Num.    |2       |Tipo de elección.                                         |
+|3       |6       |Num.    |4       |Año del proceso electoral.                                |
+|7       |8       |Num.    |2       |Mes del proceso electoral.                                |
+|9       |9       |Num.    |1       |Número de vuelta.                                         |
+|        |        |        |        |(en procesos a una sola vuelta o Referéndum = 1).         |
+|10      |10      |Alf.    |1       |Tipo de ámbito (N=nacional, A=autonómico).                |
+|11      |12      |Num.    |2       |Ámbito territorial del proceso electoral.                 |
+|13      |14      |Num.    |2       |Fecha de celebración del proceso electoral (DIA).         |
+|15      |16      |Num.    |2       |Fecha de celebración del proceso electoral (MES).         |
+|17      |20      |Num.    |4       |Fecha de celebración del proceso electoral (AÑO).         |
+|21      |25      |Alf.    |5       |Hora de apertura de los ‘Colegios Electorales’ (en formato|
+|        |        |        |        |‘HH:MM’ de 24 horas).                                     |
+|26      |30      |Alf.    |5       |Hora de cierre de los ‘Colegios Electorales’ (en formato  |
+|        |        |        |        |‘HH:MM’ de 24 horas).                                     |
+|31      |35      |Alf.    |5       |Hora del primer ‘Avance de Participación’ (en formato     |
+|        |        |        |        |‘HH:MM’ de 24 horas).                                     |
+|36      |40      |Alf.    |5       |Hora del segundo ‘Avance de Participación’ (en formato    |
+|        |        |        |        |‘HH:MM’ de 24 horas).                                     |
+|OBSERVACIONES:                                                                                |
+|Este formato es común para los distintos procesos, los cuales se distinguen por los caracteres|
+|“xx” del nombre del fichero y por el contenido del campo “Tipo de elección” (columnas 1-2) que|
+|serán idénticos y se ajustarán a los siguientes:                                              |
+|01 = Referéndum                                                                               |
+|02 = Congreso                                                                                 |
+|03 = Senado                                                                                   |
+|04 = Municipales, Partidos Judiciales y Diputaciones Provinciales                             |
+|05 = Autonómicas                                                                              |
+|06 = Cabildos Insulares                                                                       |
+|07 = Parlamento Europeo                                                                       |
+|15 = Juntas Generales.                                                                        |
+|Un Referéndum que afecte parcialmente a un ámbito, llevará en el campo “Tipo de ámbito”       |
+|(columna 10) el código del ámbito parcialmente afectado. Por ejemplo, un Referéndum que se    |
+|celebre en una sola provincia llevará una “A” y en el campo “Ámbito Territorial del Proceso   |
+|Electoral” (columnas 11-12) el código de dicha autonomía.                                     |
+|El campo “Ámbito Territorial del Proceso Electoral” (columnas 11-12), que deberá estar en     |
+|concordancia con el campo “Tipo de ámbito” (columna 10), siempre llevará el valor “99” excepto|
+|en:                                                                                           |
+|Elecciones “Autonómicas”, “Juntas Generales” y “Cabildos Insulares”, que llevará el código de |
+|la Comunidad Autónoma a la que afecte dichas elecciones.                                      |
+|“Referéndum”, que llevará “99” en el caso de que la consulta sea a nivel “Nacional” o el      |
+|código de la Comunidad Autónoma a la que afecte dicha consulta.                               |
+|En el caso de celebración simultánea en distintos ámbitos territoriales de un mismo tipo de   |
+|proceso electoral (caso de “Elecciones Autonómicas”), se podrán incluir todos los datos de los|
+|distintos procesos en un solo juego de ficheros, haciendo referencia a los mismos con la      |
+|inclusión de un registro de identificación para cada uno de ellos.                            |
+|En “Referéndum”, el campo “Número de vuelta” (columna 9) siempre tendrá un 1 y solo existirá  |
+|un registro de identificación por cada proceso (aunque sea multipregunta).                    |
+
+|03xxaamm.DAT                                                                                  |
+|3.- Fichero de CANDIDATURAS.                                                                  |
+|Posiciones       |Datos                                                                       |
+|Inicio  |Fin     |Tipo    |Long.   |Descripción                                               |
+|1       |2       |Num.    |2       |Tipo de elección.                                         |
+|3       |6       |Num.    |4       |Año del proceso electoral.                                |
+|7       |8       |Num.    |2       |Mes del proceso electoral.                                |
+|9       |14      |Num.    |6       |Código de la candidatura.                                 |
+|15      |64      |Alf.    |50      |Siglas de la candidatura.                                 |
+|65      |214     |Alf.    |150     |Denominación de la candidatura.                           |
+|215     |220     |Num.    |6       |Código de la candidatura cabecera de acumulación a nivel  |
+|        |        |        |        |provincial.                                               |
+|221     |226     |Num.    |6       |Código de la candidatura cabecera de acumulación a nivel  |
+|        |        |        |        |autonómico.                                               |
+|227     |232     |Num.    |6       |Código de la candidatura cabecera de acumulación a nivel  |
+|        |        |        |        |nacional.                                                 |
+|OBSERVACIONES:                                                                                |
+|Este formato es común para los distintos procesos, los cuales se distinguen por los caracteres|
+|“xx” del nombre del fichero y por el contenido del campo “Tipo de elección” (columnas 1-2) que|
+|serán idénticos y se ajustarán a los siguientes:                                              |
+|02 = Congreso                                                                                 |
+|03 = Senado                                                                                   |
+|04 = Municipales                                                                              |
+|05 = Autonómicas                                                                              |
+|06 = Cabildos Insulares                                                                       |
+|07 = Parlamento Europeo                                                                       |
+|15 = Juntas Generales.                                                                        |
+
+|04xxaamm.DAT                                                                                  |
+|4.- Fichero de RELACION DE CANDIDATOS.                                                        |
+|Posiciones       |Datos                                                                       |
+|Inicio  |Fin     |Tipo    |Long.   |Descripción                                               |
+|1       |2       |Num.    |2       |Tipo de elección.                                         |
+|3       |6       |Num.    |4       |Año del proceso electoral.                                |
+|7       |8       |Num.    |2       |Mes del proceso electoral.                                |
+|9       |9       |Num.    |1       |Número de vuelta (en procesos a una sola vuelta = 1).     |
+|10      |11      |Num.    |2       |Código I.N.E.de la provincia (99 en elecciones al         |
+|        |        |        |        |Parlamento Europeo).                                      |
+|12      |12      |Num.    |1       |Distrito electoral cuando corresponda o 9 en elecciones   |
+|        |        |        |        |que no tienen este tipo de circunscripción.               |
+|13      |15      |Num.    |3       |Código I.N.E. del municipio (elecciones municipales) o del|
+|        |        |        |        |Senador (elecciones al Senado). En el resto de procesos   |
+|        |        |        |        |electorales llevará siempre 999.                          |
+|16      |21      |Num.    |6       |Código de la candidatura.                                 |
+|22      |24      |Num.    |3       |Número de orden del candidato.                            |
+|25      |25      |Alf.    |1       |Tipo de candidato (T = Titular, S = Suplente).            |
+|26      |50      |Alf.    |25      |Nombre del candidato.                                     |
+|51      |75      |Alf.    |25      |Primer apellido del candidato.                            |
+|76      |100     |Alf.    |25      |Segundo apellido del candidato.                           |
+|101     |101     |Alf.    |1       |Sexo del candidato (Masculino/Femenino).                  |
+|102     |103     |Num.    |2       |Fecha de nacimiento del candidato (DIA).                  |
+|104     |105     |Num.    |2       |Fecha de nacimiento del candidato (MES).                  |
+|106     |109     |Num.    |4       |Fecha de nacimiento del candidato (AÑO).                  |
+|110     |119     |Alf.    |10      |D.N.I. del candidato.                                     |
+|120     |120     |Alf.    |1       |Candidato elegido (Si/No).                                |
+|OBSERVACIONES:                                                                                |
+|Este formato es común para los distintos procesos, los cuales se distinguen por los caracteres|
+|“xx” del nombre del fichero y por el contenido del campo “Tipo de elección” (columnas 1-2) que|
+|serán idénticos y se ajustarán a los siguientes:                                              |
+|02 = Congreso                                                                                 |
+|03 = Senado                                                                                   |
+|04 = Municipales (municipios > 250 habitantes, los candidatos de los municipios < 250         |
+|habitantes irán en el ficheros 1204aamm.dat)                                                  |
+|05 = Autonómicas                                                                              |
+|06 = Cabildos Insulares                                                                       |
+|07 = Parlamento Europeo                                                                       |
+|15 = Juntas Generales.                                                                        |
+|En las elecciones al Senado, el ‘Código del municipio o del Senador’ irá cumplimentado con el |
+|orden del candidato en la circunscripción por la que se presenta.                             |
+|El campo ‘Número de orden del candidato’ (columnas 22-24) contendrá el número de orden  que el|
+|candidato ocupa dentro de la candidatura por la que se presenta.                              |
+
+|05xxaamm.DAT                                                                                  |
+|5.- Fichero de DATOS COMUNES DE MUNICIPIOS.                                                   |
+|Posiciones       |Datos                                                                       |
+|Inicio  |Fin     |Tipo    |Long.   |Descripción                                               |
+|1       |2       |Num.    |2       |Tipo de elección.                                         |
+|3       |6       |Num.    |4       |Año del proceso electoral.                                |
+|7       |8       |Num.    |2       |Mes del proceso electoral.                                |
+|9       |9       |Num.    |1       |Número de vuelta (en procesos a una sola vuelta = 1) o    |
+|        |        |        |        |Número de pregunta en Referéndum.                         |
+|10      |11      |Num.    |2       |Código de la Comunidad Autónoma.                          |
+|12      |13      |Num.    |2       |Código I.N.E. de la provincia.                            |
+|14      |16      |Num.    |3       |Código I.N.E. del municipio.                              |
+|17      |18      |Num.    |2       |Número de distrito municipal en su caso o 99 si es el     |
+|        |        |        |        |total municipal.                                          |
+|19      |118     |Alf.    |100     |Nombre del municipio o del distrito municipal.            |
+|119     |119     |Num.    |1       |Código del Distrito Electoral cuando corresponda o 0 en   |
+|        |        |        |        |elecciones que no tienen este tipo de circunscripción.    |
+|120     |122     |Num.    |3       |Código del Partido Judicial.                              |
+|123     |125     |Num.    |3       |Código de la Diputación Provincial.                       |
+|126     |128     |Num.    |3       |Código de la comarca.                                     |
+|129     |136     |Num.    |8       |Población de derecho.                                     |
+|137     |141     |Num.    |5       |Número de mesas.                                          |
+|142     |149     |Num.    |8       |Censo del I.N.E.                                          |
+|150     |157     |Num.    |8       |Censo de escrutinio.                                      |
+|158     |165     |Num.    |8       |Censo C.E.R.E. en escrutinio (Residentes Extranjeros).    |
+|166     |173     |Num.    |8       |Total votantes C.E.R.E. (Residentes Extranjeros).         |
+|174     |181     |Num.    |8       |Votantes del primer avance de participación.              |
+|182     |189     |Num.    |8       |Votantes del segundo avance de participación.             |
+|190     |197     |Num.    |8       |Votos en blanco.                                          |
+|198     |205     |Num.    |8       |Votos nulos.                                              |
+|206     |213     |Num.    |8       |Votos a candidaturas.                                     |
+|214     |216     |Num.    |3       |Número de ‘Escaños’ a distribuir cuando el municipio es la|
+|        |        |        |        |circunscripción electoral. Ceros en otros casos.          |
+|217     |224     |Num.    |8       |Votos afirmativos en Referéndum o ceros en otros procesos |
+|        |        |        |        |electorales.                                              |
+|225     |232     |Num.    |8       |Votos negativos en Referéndum o ceros en otros procesos   |
+|        |        |        |        |electorales.                                              |
+|233     |233     |Alf.    |1       |Datos oficiales (Si/No).                                  |
+|OBSERVACIONES:                                                                                |
+|Este formato es común para los distintos procesos, los cuales se distinguen por los caracteres|
+|“xx” del nombre del fichero y por el contenido del campo “Tipo de elección” (columnas 1-2) que|
+|serán idénticos y se ajustarán a los siguientes:                                              |
+|01 = Referéndum                                                                               |
+|02 = Congreso                                                                                 |
+|03 = Senado                                                                                   |
+|04 = Municipales (municipios > 250 habitantes)                                                |
+|05 = Autonómicas                                                                              |
+|06 = Cabildos Insulares                                                                       |
+|07 = Parlamento Europeo                                                                       |
+|10 = Partidos Judiciales                                                                      |
+|15 = Juntas Generales.                                                                        |
+|En el caso de “Referéndum”, habrá un registro por cada municipio y pregunta. Por ejemplo, en  |
+|el caso de un Referéndum con dos preguntas, por cada municipio deberán existir dos registros  |
+|con los datos relativos a cada una de ellas.                                                  |
+
+|06xxaamm.DAT                                                                                  |
+|6.- Fichero de DATOS DE CANDIDATURAS DE MUNICIPIOS.                                           |
+|Posiciones       |Datos                                                                       |
+|Inicio  |Fin     |Tipo    |Long.   |Descripción                                               |
+|1       |2       |Num.    |2       |Tipo de elección.                                         |
+|3       |6       |Num.    |4       |Año del proceso electoral.                                |
+|7       |8       |Num.    |2       |Mes del proceso electoral.                                |
+|9       |9       |Num.    |1       |Número de vuelta (en procesos a una sola vuelta = 1).     |
+|10      |11      |Num.    |2       |Código I.N.E. de la provincia.                            |
+|12      |14      |Num.    |3       |Código I.N.E. del municipio.                              |
+|15      |16      |Num.    |2       |Número de distrito municipal en su caso o 99 si es el     |
+|        |        |        |        |total municipal.                                          |
+|17      |22      |Num.    |6       |Código de la candidatura o del Senador.                   |
+|23      |30      |Num.    |8       |Votos obtenidos por la candidatura.                       |
+|31      |33      |Num.    |3       |Número de candidatos obtenidos por la candidatura.        |
+|OBSERVACIONES:                                                                                |
+|Este formato es común para los distintos procesos, los cuales se distinguen por los caracteres|
+|“xx” del nombre del fichero y por el contenido del campo “Tipo de elección” (columnas 1-2) que|
+|serán idénticos y se ajustarán a los siguientes:                                              |
+|02 = Congreso                                                                                 |
+|03 = Senado                                                                                   |
+|04 = Municipales (municipios > 250 habitantes)                                                |
+|05 = Autonómicas                                                                              |
+|06 = Cabildos Insulares                                                                       |
+|07 = Parlamento Europeo                                                                       |
+|10 = Partidos Judiciales                                                                      |
+|15 = Juntas Generales.                                                                        |
+|En elecciones al Senado, el campo ‘Código del Senador’ constará de seis dígitos y estará      |
+|compuesto según se indica en la descripción del fichero de tipo ‘04' (Fichero de RELACION DE  |
+|CANDIDATOS) por el código de provincia + código del distrito electoral + el orden del         |
+|candidato dentro de la circunscripción por la que se presenta.                                |
+
+|07xxaamm.DAT                                                                                  |
+|7.- Fichero de DATOS COMUNES DE AMBITO SUPERIOR AL MUNICIPIO.                                 |
+|Posiciones       |Datos                                                                       |
+|Inicio  |Fin     |Tipo    |Long.   |Descripción                                               |
+|1       |2       |Num.    |2       |Tipo de elección.                                         |
+|3       |6       |Num.    |4       |Año del proceso electoral.                                |
+|7       |8       |Num.    |2       |Mes del proceso electoral.                                |
+|9       |9       |Num.    |1       |Número de vuelta (en procesos a una sola vuelta = 1) o    |
+|        |        |        |        |Número de pregunta en Referéndum.                         |
+|10      |11      |Num.    |2       |Código de la Comunidad Autónoma. En el caso de Total      |
+|        |        |        |        |Nacional, llevará 99.                                     |
+|12      |13      |Num.    |2       |Código I.N.E. de la provincia o 99 si se trata de datos a |
+|        |        |        |        |nivel Total Comunidad o Total Nacional.                   |
+|14      |14      |Num.    |1       |Código del Distrito Electoral que corresponda o 9 en datos|
+|        |        |        |        |a nivel Total Provincial, Comunidad o Nacional.           |
+|15      |64      |Alf.    |50      |Nombre del ámbito territorial.                            |
+|65      |72      |Num.    |8       |Población de derecho.                                     |
+|73      |77      |Num.    |5       |Número de mesas.                                          |
+|78      |85      |Num.    |8       |Censo del I.N.E.                                          |
+|86      |93      |Num.    |8       |Censo de escrutinio.                                      |
+|94      |101     |Num.    |8       |Censo C.E.R.E. en escrutinio (Residentes Extranjeros).    |
+|102     |109     |Num.    |8       |Total votantes C.E.R.E. (Residentes Extranjeros).         |
+|110     |117     |Num.    |8       |Votantes del primer avance de participación.              |
+|118     |125     |Num.    |8       |Votantes del segundo avance de participación.             |
+|126     |133     |Num.    |8       |Votos en blanco.                                          |
+|134     |141     |Num.    |8       |Votos nulos.                                              |
+|142     |149     |Num.    |8       |Votos a candidaturas.                                     |
+|150     |155     |Num.    |6       |Número de ‘Escaños’ a distribuir cuando el ámbito coincida|
+|        |        |        |        |con la circunscripción electoral o Total de ‘Escaños’     |
+|        |        |        |        |distribuidos en el ámbito. Ceros en el caso de que el     |
+|        |        |        |        |ámbito sea inferior a la circunscripción electoral.       |
+|156     |163     |Num.    |8       |Votos afirmativos en Referéndum o ceros en otros procesos |
+|        |        |        |        |electorales.                                              |
+|164     |171     |Num.    |8       |Votos negativos en Referéndum o ceros en otros procesos   |
+|        |        |        |        |electorales.                                              |
+|172     |172     |Alf.    |1       |Datos oficiales (Si/No).                                  |
+|OBSERVACIONES:                                                                                |
+|Este formato es común para los distintos procesos, los cuales se distinguen por los caracteres|
+|“xx” del nombre del fichero y por el contenido del campo “Tipo de elección” (columnas 1-2) que|
+|serán idénticos y se ajustarán a los siguientes:                                              |
+|01 = Referéndum                                                                               |
+|02 = Congreso                                                                                 |
+|03 = Senado                                                                                   |
+|04 = Municipales                                                                              |
+|05 = Autonómicas                                                                              |
+|06 = Cabildos Insulares                                                                       |
+|07 = Parlamento Europeo                                                                       |
+|10 = Diputaciones Provinciales                                                                |
+|15 = Juntas Generales.                                                                        |
+|En el caso de ‘Referéndum’, habrá un registro por cada ámbito y pregunta. Por ejemplo, en el  |
+|caso de un Referéndum con dos preguntas, por cada ámbito deberán existir dos registros con los|
+|datos relativos a cada una de ellas.                                                          |
+
+|08xxaamm.DAT                                                                                  |
+|8.- Fichero de DATOS DE CANDIDATURAS DE AMBITO SUPERIOR AL MUNICIPIO.                         |
+|Posiciones       |Datos                                                                       |
+|Inicio  |Fin     |Tipo    |Long.   |Descripción                                               |
+|1       |2       |Num.    |2       |Tipo de elección.                                         |
+|3       |6       |Num.    |4       |Año del proceso electoral.                                |
+|7       |8       |Num.    |2       |Mes del proceso electoral.                                |
+|9       |9       |Num.    |1       |Número de vuelta (en procesos a una sola vuelta = 1).     |
+|10      |11      |Num.    |2       |Código de la Comunidad Autónoma. En el caso de Total      |
+|        |        |        |        |Nacional, llevará 99.                                     |
+|12      |13      |Num.    |2       |Código I.N.E. de la provincia o 99 si se trata de datos a |
+|        |        |        |        |nivel Total Comunidad o Total Nacional.                   |
+|14      |14      |Num.    |1       |Código del Distrito Electoral que corresponda o 9 en datos|
+|        |        |        |        |a nivel Total Provincial, Comunidad o Nacional.           |
+|15      |20      |Num.    |6       |Código de la candidatura o del Senador.                   |
+|21      |28      |Num.    |8       |Votos obtenidos por la candidatura.                       |
+|29      |33      |Num.    |5       |Número de candidatos obtenidos por la candidatura.        |
+|OBSERVACIONES:                                                                                |
+|Este formato es común para los distintos procesos, los cuales se distinguen por los caracteres|
+|“xx” del nombre del fichero y por el contenido del campo “Tipo de elección” (columnas 1-2) que|
+|serán idénticos y se ajustarán a los siguientes:                                              |
+|02 = Congreso                                                                                 |
+|03 = Senado                                                                                   |
+|04 = Municipales                                                                              |
+|05 = Autonómicas                                                                              |
+|06 = Cabildos Insulares                                                                       |
+|07 = Parlamento Europeo                                                                       |
+|10 = Diputaciones Provinciales                                                                |
+|15 = Juntas Generales.                                                                        |
+|En elecciones al Senado, el campo ‘Código del Senador’ constará de seis dígitos y estará      |
+|compuesto según se indica en la descripción del fichero de tipo ‘04' (Fichero de RELACION DE  |
+|CANDIDATOS) por el código de provincia + código del distrito electoral + el orden del         |
+|candidato dentro de la circunscripción por la que se presenta.                                |
+
+|09xxaamm.DAT                                                                                  |
+|9.- Fichero de DATOS COMUNES DE MESAS y del C.E.R.A.                                          |
+|Posiciones       |Datos                                                                       |
+|Inicio  |Fin     |Tipo    |Long.   |Descripción                                               |
+|1       |2       |Num.    |2       |Tipo de elección.                                         |
+|3       |6       |Num.    |4       |Año del proceso electoral.                                |
+|7       |8       |Num.    |2       |Mes del proceso electoral.                                |
+|9       |9       |Num.    |1       |Número de vuelta (en procesos a una sola vuelta = 1) o    |
+|        |        |        |        |Número de pregunta en Referéndum.                         |
+|10      |11      |Num.    |2       |Código de la Comunidad Autónoma o 99 si se trata del Total|
+|        |        |        |        |Nacional del C.E.R.A.                                     |
+|12      |13      |Num.    |2       |Código I.N.E. de la provincia o 99 si se trata del Total  |
+|        |        |        |        |Nacional o Autonómico del C.E.R.A.                        |
+|14      |16      |Num.    |3       |Código I.N.E. del municipio (999 = C.E.R.A.).             |
+|17      |18      |Num.    |2       |Número de distrito municipal en su caso o 01 si el        |
+|        |        |        |        |municipio no tiene distritos (distrito único). En el caso |
+|        |        |        |        |de datos procedentes del C.E.R.A., llevará el número del  |
+|        |        |        |        |‘Distrito Electoral’ a que correspondan o 09 si el ámbito |
+|        |        |        |        |de dicho distrito coincide con el de la provincia.        |
+|19      |22      |Alf.    |4       |Código de la sección (tres dígitos seguidos de un espacio,|
+|        |        |        |        |letra mayúscula u otro dígito).                           |
+|23      |23      |Alf.    |1       |Código de la mesa (una letra mayúscula identificando la   |
+|        |        |        |        |mesa o una ‘U’ en caso de mesa única).                    |
+|24      |30      |Num.    |7       |Censo del I.N.E.                                          |
+|31      |37      |Num.    |7       |Censo de escrutinio o censo C.E.R.A.                      |
+|38      |44      |Num.    |7       |Censo C.E.R.E. en escrutinio (Residentes Extranjeros).    |
+|45      |51      |Num.    |7       |Total votantes C.E.R.E. (Residentes Extranjeros).         |
+|52      |58      |Num.    |7       |Votantes del primer avance de participación.              |
+|59      |65      |Num.    |7       |Votantes del segundo avance de participación.             |
+|66      |72      |Num.    |7       |Votos en blanco.                                          |
+|73      |79      |Num.    |7       |Votos nulos.                                              |
+|80      |86      |Num.    |7       |Votos a candidaturas.                                     |
+|87      |93      |Num.    |7       |Votos afirmativos en Referéndum o ceros en otros procesos |
+|        |        |        |        |electorales.                                              |
+|94      |100     |Num.    |7       |Votos negativos en Referéndum o ceros en otros procesos   |
+|        |        |        |        |electorales.                                              |
+|101     |101     |Alf.    |1       |Datos oficiales (Si/No).                                  |
+|OBSERVACIONES:                                                                                |
+|Este formato es común para los distintos procesos, los cuales se distinguen por los caracteres|
+|“xx” del nombre del fichero y por el contenido del campo “Tipo de elección” (columnas 1-2) que|
+|serán idénticos y se ajustarán a los siguientes:                                              |
+|01 = Referéndum                                                                               |
+|02 = Congreso                                                                                 |
+|03 = Senado                                                                                   |
+|04 = Municipales                                                                              |
+|05 = Autonómicas                                                                              |
+|06 = Cabildos Insulares                                                                       |
+|07 = Parlamento Europeo                                                                       |
+|15 = Juntas Generales.                                                                        |
+|En el caso de “Referéndum”, habrá un registro por cada mesa y pregunta. Por ejemplo, en el    |
+|caso de un Referéndum con dos preguntas, por cada mesa deberán existir dos registros con los  |
+|datos relativos a cada una de ellas.                                                          |
+|En elecciones “Municipales”, el fichero solo contendrá datos correspondientes a las mesas de  |
+|los municipios mayores de 250 habitantes. Es decir, no constarán datos procedentes del        |
+|C.E.R.A. ni de mesas de municipios de menos de 250 habitantes.                                |
+|En el caso de datos procedentes del C.E.R.A., los campos “Código de la Sección” y “Código de  |
+|la Mesa” llevarán los valores “0000” y “U”, respectivamente, y los campos “Censo del I.N.E.”, |
+|“Censo C.E.R.E”, “Total votantes C.E.R.E.”, “Votantes del primer avance” y “Votantes del      |
+|segundo avance” llevarán todos como valor “000000”.                                           |
+
+|10xxaamm.DAT                                                                                  |
+|10.- Fichero de DATOS DE CANDIDATURAS DE MESAS y del C.E.R.A.                                 |
+|Posiciones       |Datos                                                                       |
+|Inicio  |Fin     |Tipo    |Long.   |Descripción                                               |
+|1       |2       |Num.    |2       |Tipo de elección.                                         |
+|3       |6       |Num.    |4       |Año del proceso electoral.                                |
+|7       |8       |Num.    |2       |Mes del proceso electoral.                                |
+|9       |9       |Num.    |1       |Número de vuelta (en procesos a una sola vuelta = 1).     |
+|10      |11      |Num.    |2       |Código de la Comunidad Autónoma o 99 si se trata del Total|
+|        |        |        |        |Nacional del C.E.R.A.                                     |
+|12      |13      |Num.    |2       |Código I.N.E. de la provincia o 99 si se trata del Total  |
+|        |        |        |        |Nacional o Autonómico del C.E.R.A.                        |
+|14      |16      |Num.    |3       |Código I.N.E. del municipio (999 = C.E.R.A.).             |
+|17      |18      |Num.    |2       |Número de distrito municipal en su caso o 01 si el        |
+|        |        |        |        |municipio no tiene distritos (distrito único). En el caso |
+|        |        |        |        |de datos procedentes del C.E.R.A., llevará el número del  |
+|        |        |        |        |‘Distrito Electoral’ a que correspondan o 09 si el ámbito |
+|        |        |        |        |de dicho distrito coincide con el de la provincia.        |
+|19      |22      |Alf.    |4       |Código de la sección (tres dígitos seguidos de un espacio,|
+|        |        |        |        |letra mayúscula u otro dígito).                           |
+|23      |23      |Alf.    |1       |Código de la mesa (una letra mayúscula identificando la   |
+|        |        |        |        |mesa o una ‘U’ en caso de mesa única).                    |
+|24      |29      |Num.    |6       |Código de la candidatura o del Senador en elecciones al   |
+|        |        |        |        |Senado.                                                   |
+|30      |36      |Num.    |7       |Votos obtenidos por la candidatura o el Senador.          |
+|OBSERVACIONES:                                                                                |
+|Este formato es común para los distintos procesos, los cuales se distinguen por los caracteres|
+|“xx” del nombre del fichero y por el contenido del campo “Tipo de elección” (columnas 1-2) que|
+|serán idénticos y se ajustarán a los siguientes:                                              |
+|02 = Congreso                                                                                 |
+|03 = Senado                                                                                   |
+|04 = Municipales                                                                              |
+|05 = Autonómicas                                                                              |
+|06 = Cabildos Insulares                                                                       |
+|07 = Parlamento Europeo                                                                       |
+|15 = Juntas Generales.                                                                        |
+|En elecciones al Senado, el campo ‘Código del Senador’ constará de seis dígitos y estará      |
+|compuesto según se indica en la descripción del fichero de tipo ‘04' (Fichero de RELACION DE  |
+|CANDIDATOS) por el código de provincia + código del distrito electoral + el orden del         |
+|candidato dentro de la circunscripción por la que se presenta.                                |
+|En elecciones ‘Municipales’, el fichero solo contendrá datos correspondientes a las mesas de  |
+|los municipios mayores de 250 habitantes. Es decir, no constarán datos procedentes del        |
+|C.E.R.A. ni de mesas de municipios de menos de 250 habitantes.                                |
+|En el caso de datos procedentes del C.E.R.A., los campos “Código de la Sección” y “Código de  |
+|la Mesa” llevarán los valores “0000” y “U” respectivamente.                                   |
+|En los datos de Totales Nacionales, Autonómicos o Provinciales del C.E.R.A., las candidaturas |
+|se acumularán siguiendo el mismo criterio que en los datos correspondientes al Ámbito Superior|
+|al Municipio.                                                                                 |
+
+|1104aamm.DAT                                                                                  |
+|11.- Fichero de DATOS COMUNES DE MUNICIPIOS menores de 250 habitantes. (Solo en Elecciones    |
+|Municipales)                                                                                  |
+|Posiciones       |Datos                                                                       |
+|Inicio  |Fin     |Tipo    |Long.   |Descripción                                               |
+|1       |2       |Num.    |2       |Tipo de municipio:                                        |
+|        |        |        |        |08 = entre 100 y 250 habitantes                           |
+|        |        |        |        |09 = menores de 100 habitantes.                           |
+|3       |6       |Num.    |4       |Año del proceso electoral.                                |
+|7       |8       |Num.    |2       |Mes del proceso electoral.                                |
+|9       |9       |Num.    |1       |Número de vuelta (en procesos a una sola vuelta = 1).     |
+|10      |11      |Num.    |2       |Código de la Comunidad Autónoma.                          |
+|12      |13      |Num.    |2       |Código I.N.E. de la provincia.                            |
+|14      |16      |Num.    |3       |Código I.N.E. del municipio.                              |
+|17      |116     |Alf.    |100     |Nombre del municipio.                                     |
+|117     |119     |Num.    |3       |Código del Partido Judicial.                              |
+|120     |122     |Num.    |3       |Código de la Diputación Provincial.                       |
+|123     |125     |Num.    |3       |Código de la comarca.                                     |
+|126     |128     |Num.    |3       |Población de derecho.                                     |
+|129     |130     |Num.    |2       |Número de mesas.                                          |
+|131     |133     |Num.    |3       |Censo del I.N.E.                                          |
+|134     |136     |Num.    |3       |Censo de escrutinio.                                      |
+|137     |139     |Num.    |3       |Censo C.E.R.E. en escrutinio (Residentes Extranjeros).    |
+|140     |142     |Num.    |3       |Total votantes C.E.R.E. (Residentes Extranjeros).         |
+|143     |145     |Num.    |3       |Votantes del primer avance de participación.              |
+|146     |148     |Num.    |3       |Votantes del segundo avance de participación.             |
+|149     |151     |Num.    |3       |Votos en blanco.                                          |
+|152     |154     |Num.    |3       |Votos nulos.                                              |
+|155     |157     |Num.    |3       |Votos a candidaturas.                                     |
+|158     |159     |Num.    |2       |Número de ‘Escaños’ a distribuir.                         |
+|160     |160     |Alf.    |1       |Datos oficiales (Si/No).                                  |
+|OBSERVACIONES:                                                                                |
+
+|1204aamm.DAT                                                                                  |
+|12.- Fichero de DATOS DE CANDIDATURAS DE MUNICIPIOS menores de 250 hab. (Solo en Elecciones   |
+|Municipales)                                                                                  |
+|Posiciones       |Datos                                                                       |
+|Inicio  |Fin     |Tipo    |Long.   |Descripción                                               |
+|1       |2       |Num.    |2       |Tipo de municipio:                                        |
+|        |        |        |        |08 = entre 100 y 250 habitantes                           |
+|        |        |        |        |09 = menores de 100 habitantes.                           |
+|3       |6       |Num.    |4       |Año del proceso electoral.                                |
+|7       |8       |Num.    |2       |Mes del proceso electoral.                                |
+|9       |9       |Num.    |1       |Número de vuelta (en procesos a una sola vuelta = 1).     |
+|10      |11      |Num.    |2       |Código I.N.E. de la provincia.                            |
+|12      |14      |Num.    |3       |Código I.N.E. del municipio.                              |
+|15      |20      |Num.    |6       |Código de la candidatura.                                 |
+|21      |23      |Num.    |3       |Votos obtenidos por la candidatura.                       |
+|24      |25      |Num.    |2       |Número de candidatos obtenidos por la candidatura.        |
+|26      |50      |Alf.    |25      |Nombre del candidato.                                     |
+|51      |75      |Alf.    |25      |Primer apellido del candidato.                            |
+|76      |100     |Alf.    |25      |Segundo apellido del candidato.                           |
+|101     |101     |Alf.    |1       |Sexo del candidato (Masculino/Femenino).                  |
+|102     |103     |Num.    |2       |Fecha de nacimiento del candidato (DIA).                  |
+|104     |105     |Num.    |2       |Fecha de nacimiento del candidato (MES).                  |
+|106     |109     |Num.    |4       |Fecha de nacimiento del candidato (AÑO).                  |
+|110     |119     |Alf.    |10      |D.N.I. del candidato                                      |
+|120     |122     |Num.    |3       |Votos obtenidos por el candidato.                         |
+|123     |123     |Alf.    |1       |Candidato elegido (Si/No).                                |
+|OBSERVACIONES:                                                                                |
+
+
+[pic][pic]
