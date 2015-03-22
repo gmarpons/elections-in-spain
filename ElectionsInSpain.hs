@@ -54,77 +54,77 @@ share
   ]
   [persistLowerCase|
     TiposDeFichero
-      codigo_tipo_fichero                    Int
-      tipo_fichero                           Text
-      Primary codigo_tipo_fichero
+      codigoTipoFichero                      Int
+      tipoFichero                            Text
+      Primary codigoTipoFichero
       deriving Show
 
     TiposDeProcesoElectoral
-      codigo_tipo_proceso_electoral          Int
-      tipo_proceso_electoral                 Text
-      Primary codigo_tipo_proceso_electoral
+      codigoTipoProcesoElectoral             Int
+      tipoProcesoElectoral                   Text
+      Primary codigoTipoProcesoElectoral
       deriving Show
 
     ComunidadesAutonomas
-      codigo_comunidad                       Int
+      codigoComunidad                        Int
       comunidad                              Text
-      Primary codigo_comunidad
+      Primary codigoComunidad
       deriving Show
 
     DistritosElectorales
-      codigo_tipo_proceso_electoral          Int
-      codigo_provincia                       Int
-      codigo_distrito_electoral              Int
+      codigoTipoProcesoElectoral             Int
+      codigoProvincia                        Int
+      codigoDistritoElectoral                Int
       provincia                              Text
-      distrito_electoral                     Text
-      Primary codigo_tipo_proceso_electoral codigo_provincia codigo_distrito_electoral
+      distritoElectoral                      Text
+      Primary codigoTipoProcesoElectoral codigoProvincia codigoDistritoElectoral
       deriving Show
 
-    Candidaturas
+    Candidaturas                -- 03xxaamm.DAT
       tipoEleccion                           Int
       ano                                    Int
       mes                                    Int
-      codigo_candidatura                     Int
+      codigoCandidatura                      Int
       siglas                                 Text sqltype=varchar(50)
       denominacion                           Text sqltype=varchar(150)
-      codigo_candidatura_provincial          Int
-      codigo_candidatura_autonomico          Int
-      codigo_candidatura_nacional            Int
+      codigoCandidaturaProvincial            Int
+      codigoCandidaturaAutonomico            Int
+      codigoCandidaturaNacional              Int
       -- Use a unique multi-value instead of a primary key because PKEY +
       -- repsert fails (probably a bug)
-      UniqueCandidaturas tipoEleccion ano mes codigo_candidatura
+      UniqueCandidaturas tipoEleccion ano mes codigoCandidatura
       deriving Show
 
-    DatosComunesMunicipios
+    DatosComunesMunicipios      -- 05xxaamm.DAT
       tipoEleccion                           Int
       ano                                    Int
       mes                                    Int
       vueltaOPregunta                        Int
-      codigo_comunidad                       Int
-      codigo_provincia                       Int
-      codigo_municipio                       Int
-      num_distrito                           Int
-      nombre_municipio_o_distrito            Text sqltype=varchar(100)
-      codigo_distrito_electoral              Int
-      codigo_partido_judicial                Int
-      codigo_diputacion_provincial           Int
-      codigo_comarca                         Int
-      poblacion_derecho                      Int
-      num_mesas                              Int
-      censo_ine                              Int
-      censo_escrutinio                       Int
-      censo_residentes_extranjeros           Int
-      votantes_residentes_extranejros        Int
-      votantes_primer_avance_participacion   Int
-      votantes_segundo_avance_participacion  Int
-      votos_en_blanco                        Int
-      votos_nulos                            Int
-      votos_a_candidaturas                   Int
-      numero_escanos                         Int
-      votos_afirmativos                      Int
-      votos_negativos                        Int
-      datos_oficiales                        String sqltype=varchar(1)
-      UniqueDatosComunesMunicipios tipoEleccion ano mes vueltaOPregunta codigo_comunidad codigo_provincia codigo_municipio num_distrito
+      codigoComunidad                        Int
+      codigoProvincia                        Int
+      codigoMunicipio                        Int
+      numDistrito                            Int
+      nombreMunicipioODistrito               Text sqltype=varchar(100)
+      codigoDistritoElectoral                Int
+      codigoPartidoJudicial                  Int
+      codigoDiputacionProvincial             Int
+      codigoComarca                          Int
+      poblacionDerecho                       Int
+      numMesas                               Int
+      censoIne                               Int
+      censoEscrutinio                        Int
+      censoResidentesExtranjeros             Int
+      votantesResidentesExtranejros          Int
+      votantesPrimerAvanceParticipacion      Int
+      votantesSegundoAvanceParticipacion     Int
+      votosEnBlanco                          Int
+      votosNulos                             Int
+      votosACandidaturas                     Int
+      numeroEscanos                          Int
+      votosAfirmativos                       Int
+      votosNegativos                         Int
+      datosOficiales                         String sqltype=varchar(1)
+      UniqueDatosComunesMunicipios tipoEleccion ano mes vueltaOPregunta codigoComunidad codigoProvincia codigoMunicipio numDistrito
       deriving Show
   |]
 
