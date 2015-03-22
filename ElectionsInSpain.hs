@@ -54,7 +54,6 @@ share
   ]
   [persistLowerCase|
     Candidaturas
---      id_candidatura                         Text sqltype=varchar(14)
       tipoEleccion                           Int
       ano                                    Int
       mes                                    Int
@@ -70,7 +69,6 @@ share
       deriving Show
 
     DatosComunesMunicipios
---      id_datos_comunes_municipios            Text sqltype=varchar(18)
       tipoEleccion                           Int
       ano                                    Int
       mes                                    Int
@@ -108,31 +106,28 @@ skipToNextLineAfter item = item <* skip 1
 
 getCandidatura :: Get Candidaturas
 getCandidatura =
-  mk Candidaturas
-  <$> getTipoEleccion
-  <*> getAno
-  <*> getMes
-  <*> getCodigoCandidatura
+  Candidaturas
+  <$> (snd <$> getTipoEleccion)
+  <*> (snd <$> getAno)
+  <*> (snd <$> getMes)
+  <*> (snd <$> getCodigoCandidatura)
   <*> getSiglas
   <*> getDenominacion
   <*> (snd <$> getCodigoCandidatura)
   <*> (snd <$> getCodigoCandidatura)
   <*> (snd <$> getCodigoCandidatura)
-  where
---    mk f (t, t') (a, a') (m, m') (c, c') = f (T.concat [t, a, m, c]) t' a' m' c'
-    mk f (t, t') (a, a') (m, m') (c, c') = f t' a' m' c'
 
 getDatosComunesMunicipio :: Get DatosComunesMunicipios
 getDatosComunesMunicipio =
-  mk DatosComunesMunicipios
-  <$> getTipoEleccion
-  <*> getAno
-  <*> getMes
-  <*> getVueltaOPregunta
-  <*> getCodigoComunidad
-  <*> getCodigoProvincia
-  <*> getCodigoMunicipio
-  <*> getNumDistrito
+  DatosComunesMunicipios
+  <$> (snd <$> getTipoEleccion)
+  <*> (snd <$> getAno)
+  <*> (snd <$> getMes)
+  <*> (snd <$> getVueltaOPregunta)
+  <*> (snd <$> getCodigoComunidad)
+  <*> (snd <$> getCodigoProvincia)
+  <*> (snd <$> getCodigoMunicipio)
+  <*> (snd <$> getNumDistrito)
   <*> getNombreMunicipioODistrito
   <*> (snd <$> getCodigoDistritoElectoral)
   <*> (snd <$> getCodigoPartidoJudicial)
@@ -153,10 +148,6 @@ getDatosComunesMunicipio =
   <*> (snd <$> getVotosAfirmativos)
   <*> (snd <$> getVotosNegativos)
   <*> getDatosOficiales
-  where
-    mk f (t, t') (a, a') (m, m') (v, v') (cc, cc') (cp, cp') (cm, cm') (nd, nd')
---      = f (T.concat [t, a, m, v, cc, cp, cm, nd]) t' a' m' v' cc' cp' cm' nd'
-      = f t' a' m' v' cc' cp' cm' nd'
 
 getTipoEleccion :: Get (Text, Int)
 getTipoEleccion = getInt 2
