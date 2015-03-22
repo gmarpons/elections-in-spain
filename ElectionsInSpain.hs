@@ -86,27 +86,34 @@ getCandidatura =
   where
     mk f (t, t') (a, a') (m, m') (c, c') = f (T.concat [t, a, m, c]) c' t' a' m'
 
--- Partial function (read). Fails if the 2 bytes read are not decimal digits.
 getTipoEleccion :: Get (Text, Int)
-getTipoEleccion = (T.pack &&& read) . B8.unpack <$> getByteString 2
+getTipoEleccion = getInt 2
 
--- Partial function (read). Fails if the 4 bytes read are not decimal digits.
 getAno :: Get (Text, Int)
-getAno = (T.pack &&& read) . B8.unpack <$> getByteString 4
+getAno = getInt 4
 
--- Partial function (read). Fails if the 2 bytes read are not decimal digits.
 getMes :: Get (Text, Int)
-getMes = (T.pack &&& read) . B8.unpack <$> getByteString 2
+getMes = getInt 2
 
--- Partial function (read). Fails if the 6 bytes read are not decimal digits.
 getCodigoCandidatura :: Get (Text, Int)
-getCodigoCandidatura = (T.pack &&& read) . B8.unpack <$> getByteString 6
+getCodigoCandidatura = getInt 6
 
 getSiglas :: Get Text
-getSiglas = T.stripEnd . T.pack . B8.unpack <$> getByteString 50
+getSiglas = getText 50
 
 getDenominacion :: Get Text
-getDenominacion = T.stripEnd . T.pack . B8.unpack <$> getByteString 150
+getDenominacion = getText 150
+
+-- | Given a number of bytes to read, gets and @Int@ (into the Get monad) both
+-- as a number and as Text. WARNING: partial function, uses @read@, so if fails
+-- if some of the obtained bytes is not a decimal digit.
+getInt :: Int -> Get (Text, Int)
+getInt n = (T.pack &&& read) . B8.unpack <$> getByteString n
+
+-- | Given a number of bytes to read, gets (into the Get monad) the end-stripped
+-- @Text@ represented by those bytes.
+getText :: Int -> Get Text
+getText n = T.stripEnd . T.pack . B8.unpack <$> getByteString n
 
 
 -- |
