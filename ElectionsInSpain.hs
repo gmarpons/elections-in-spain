@@ -14,26 +14,29 @@
 module Main where
 
 import           Control.Applicative
-import           Control.Lens
+import           Control.Arrow
 import           Control.Monad
 import           Control.Monad.Catch
-import           Control.Monad.IO.Class      (MonadIO, liftIO)
+import           Control.Monad.IO.Class            (MonadIO, liftIO)
 import           Control.Monad.Logger
+import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Control
 import           Control.Monad.Trans.Reader
-import qualified Data.ByteString.Char8       as B8 (pack)
-import           Data.Char
-import qualified Data.Map.Strict             as M
-import           Data.Maybe
-import qualified Data.Set                    as S
+import           Control.Monad.Trans.Resource
+import           Data.Binary
+import           Data.Binary.Get
+import qualified Data.ByteString.Char8             as B8
+import           Data.Conduit
+import           Data.Conduit.Combinators          hiding (concat, print)
+import           Data.Conduit.Serialization.Binary
 import           Data.String
-import           Data.Text                   (Text)
-import qualified Data.Text                   as T
-import           Data.Time.Clock
-import           Database.Persist
-import           Database.Persist.Postgresql
+import           Data.Text                         (Text)
+import qualified Data.Text                         as T
+import           Database.Persist                  hiding (get)
+import           Database.Persist.Postgresql       hiding (get)
 import           Database.Persist.TH
-import qualified Filesystem.Path.CurrentOS   as F
+import           Filesystem.Path.CurrentOS         ((</>))
+import qualified Filesystem.Path.CurrentOS         as F
 import           Options.Applicative
 
 
@@ -43,12 +46,67 @@ import           Options.Applicative
 share
   [ mkPersist sqlSettings { mpsPrefixFields   = True
                           , mpsGeneric        = False
-                          , mpsGenerateLenses = True
+                          , mpsGenerateLenses = False
                           }
   , mkMigrate "migrateAll"
   ]
   [persistLowerCase|
+    Candidaturas
+      id_candidatura                Text
+      codigo_candidatura            Int
+      tipoEleccion                  Int
+      ano                           Int
+      mes                           Int
+      siglas                        Text sqltype=varchar(50)
+      denominacion                  Text sqltype=varchar(150)
+      codigo_candidatura_provincial Int
+      codigo_candidatura_autonomico Int
+      codigo_candidatura_nacional   Int
+      -- Use a unique column instead of a primary key because PKEY + repsert
+      -- fails (probably a bug)
+      UniqueIdCandidatura id_candidatura
+      deriving Show
   |]
+
+skipToNextLineAfter :: Get a -> Get a
+skipToNextLineAfter item = item <* skip 1
+
+getCandidatura :: Get Candidaturas
+getCandidatura =
+  mk Candidaturas
+  <$> getTipoEleccion
+  <*> getAno
+  <*> getMes
+  <*> getCodigoCandidatura
+  <*> getSiglas
+  <*> getDenominacion
+  <*> (snd <$> getCodigoCandidatura)
+  <*> (snd <$> getCodigoCandidatura)
+  <*> (snd <$> getCodigoCandidatura)
+  where
+    mk f (t, t') (a, a') (m, m') (c, c') = f (T.concat [t, a, m, c]) c' t' a' m'
+
+-- Partial function (read). Fails if the 2 bytes read are not decimal digits.
+getTipoEleccion :: Get (Text, Int)
+getTipoEleccion = (T.pack &&& read) . B8.unpack <$> getByteString 2
+
+-- Partial function (read). Fails if the 4 bytes read are not decimal digits.
+getAno :: Get (Text, Int)
+getAno = (T.pack &&& read) . B8.unpack <$> getByteString 4
+
+-- Partial function (read). Fails if the 2 bytes read are not decimal digits.
+getMes :: Get (Text, Int)
+getMes = (T.pack &&& read) . B8.unpack <$> getByteString 2
+
+-- Partial function (read). Fails if the 6 bytes read are not decimal digits.
+getCodigoCandidatura :: Get (Text, Int)
+getCodigoCandidatura = (T.pack &&& read) . B8.unpack <$> getByteString 6
+
+getSiglas :: Get Text
+getSiglas = T.stripEnd . T.pack . B8.unpack <$> getByteString 50
+
+getDenominacion :: Get Text
+getDenominacion = T.stripEnd . T.pack . B8.unpack <$> getByteString 150
 
 
 -- |
@@ -56,7 +114,7 @@ share
 
 data Options
   = Options
-    { file               :: F.FilePath
+    { basedir            :: F.FilePath
     , dbname             :: String
     , user               :: String
     , password           :: String
@@ -66,8 +124,8 @@ data Options
 options :: Parser Options
 options = Options
   <$> option (fromString <$> str)
-  ( long "files"
-    <> short 'f'
+  ( long "basedir"
+    <> short 'b'
     <> metavar "DIRECTORY"
     <> help "Directory containing *.DAT files to process"
   )
@@ -107,24 +165,27 @@ helpMessage :: InfoMod a
 helpMessage =
   fullDesc
   <> progDesc "Connect to database and do things"
-  <> header "bcnodata2db - Relational-ize OData from http://opendata.bcn.cat"
+  <> header "elections-in-spain - Relational-ize .DAT files\
+            \ from www.infoelectoral.interior.es"
 
 
--- | = Entry point and auxiliary functions. All SQL commands are run in a single
--- transaction. This has some advantages (performance, if something fails no
--- data is destroyed) and one big drawback: if a collection gets broken, we
--- can't update the other collections.
+-- | = Entry point and auxiliary functions.
+
+-- | Entry point. All SQL commands are run in a single transaction.
 main :: IO ()
-main = execParser options' >>= \(Options f d u p g) -> do
-  runNoLoggingT $ withPostgresqlPool (pqConnOpts d u p) 10 $ \pool ->
+main = execParser options' >>= \(Options b d u p g) ->
+  runNoLoggingT $ withPostgresqlPool (pgConnOpts d u p) 10 $ \pool ->
     liftIO $ flip runSqlPersistMPool pool $ do
       runMigration migrateAll
-      forM_ g $ \user_ ->
+      let fileName = b </> "03041105.DAT"
+      sourceFile fileName $= conduitGet (skipToNextLineAfter getCandidatura) $$ sinkToDb
+      let tables = ["candidaturas"]
+      forM_ [(u_, t) | u_ <- g, t <- tables] $ \(user_, table) ->
         handleAll (expWhen ("granting access privileges for user " ++ user_)) $
-          grantAccess "fonts_de_dades" user_
+          grantAccess table user_
   where
     options' = info (helper <*> options) helpMessage
-    pqConnOpts d u p = B8.pack $ concat [d, u, p]
+    pgConnOpts d u p = B8.pack $ concat [d, u, p]
     expWhen :: (MonadIO m, MonadCatch m) => String -> SomeException -> m ()
     expWhen msg e = do
       liftIO $ put2Ln >> putStr "Caught when " >> putStr msg >> putStr " :"
@@ -137,3 +198,6 @@ grantAccess :: (MonadBaseControl IO m, MonadLogger m, MonadIO m)
 grantAccess t u = rawExecute (T.concat ["GRANT SELECT ON ", t," TO ", u']) []
   where
     u' = T.pack u
+
+sinkToDb :: (MonadResource m) => Sink Candidaturas (ReaderT SqlBackend m) ()
+sinkToDb = awaitForever $ \c -> lift $ upsert c []
