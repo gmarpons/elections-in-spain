@@ -53,6 +53,33 @@ share
   , mkMigrate "migrateAll"
   ]
   [persistLowerCase|
+    TiposDeFichero
+      codigo_tipo_fichero                    Int
+      tipo_fichero                           Text
+      Primary codigo_tipo_fichero
+      deriving Show
+
+    TiposDeProcesoElectoral
+      codigo_tipo_proceso_electoral          Int
+      tipo_proceso_electoral                 Text
+      Primary codigo_tipo_proceso_electoral
+      deriving Show
+
+    ComunidadesAutonomas
+      codigo_comunidad                       Int
+      comunidad                              Text
+      Primary codigo_comunidad
+      deriving Show
+
+    DistritosElectorales
+      codigo_tipo_proceso_electoral          Int
+      codigo_provincia                       Int
+      codigo_distrito_electoral              Int
+      provincia                              Text
+      distrito_electoral                     Text
+      Primary codigo_tipo_proceso_electoral codigo_provincia codigo_distrito_electoral
+      deriving Show
+
     Candidaturas
       tipoEleccion                           Int
       ano                                    Int
@@ -101,8 +128,121 @@ share
       deriving Show
   |]
 
-skipToNextLineAfter :: Get a -> Get a
-skipToNextLineAfter item = item <* skip 1
+
+-- |
+-- = Static data
+
+insertStaticDataIntoDb :: (MonadResource m, MonadIO m, MonadCatch m)
+                          =>
+                          ReaderT SqlBackend m ()
+insertStaticDataIntoDb =
+  handleAll (expWhen "upserting rows") $ do
+    -- Reinsert all (after delete) on every execution
+    deleteWhere ([] :: [Filter TiposDeFichero])
+    mapM_ insert_
+      [ TiposDeFichero  1 "Control."
+      , TiposDeFichero  2 "Identificación del proceso electoral."
+      , TiposDeFichero  3 "Candidaturas."
+      , TiposDeFichero  4 "Candidatos."
+      , TiposDeFichero  5 "Datos globales de ámbito municipal."
+      , TiposDeFichero  6 "Datos de candidaturas de ámbito municipal."
+      , TiposDeFichero  7 "Datos globales de ámbito superior al municipio."
+      , TiposDeFichero  8 "Datos de candidaturas de ámbito superior al municipio."
+      , TiposDeFichero  9 "Datos globales de mesas."
+      , TiposDeFichero 10 "Datos de candidaturas de mesas."
+      , TiposDeFichero 11 "Datos globales de municipios menores de 250 habitantes (en  elecciones municipales)."
+      , TiposDeFichero 12 "Datos de candidaturas de municipios menores de 250 habitantes (en elecciones municipales)."
+      ]
+    deleteWhere ([] :: [Filter TiposDeProcesoElectoral])
+    mapM_ insert_
+      [ TiposDeProcesoElectoral  1 "Referéndum."
+      , TiposDeProcesoElectoral  2 "Elecciones al Congreso de los Diputados."
+      , TiposDeProcesoElectoral  3 "Elecciones al Senado."
+      , TiposDeProcesoElectoral  4 "Elecciones Municipales."
+      , TiposDeProcesoElectoral  5 "Elecciones Autonómicas."
+      , TiposDeProcesoElectoral  6 "Elecciones a Cabildos Insulares."
+      , TiposDeProcesoElectoral  7 "Elecciones al Parlamento Europeo."
+      , TiposDeProcesoElectoral 10 "Elecciones a Partidos Judiciales y Diputaciones Provinciales."
+      , TiposDeProcesoElectoral 15 "Elecciones a Juntas Generales."
+      ]
+    deleteWhere ([] :: [Filter ComunidadesAutonomas])
+    mapM_ insert_
+      [ ComunidadesAutonomas  1  "Andalucía"
+      , ComunidadesAutonomas  2  "Aragón"
+      , ComunidadesAutonomas  3  "Asturias"
+      , ComunidadesAutonomas  4  "Baleares"
+      , ComunidadesAutonomas  5  "Canarias"
+      , ComunidadesAutonomas  6  "Cantabria"
+      , ComunidadesAutonomas  7  "Castilla - La Mancha"
+      , ComunidadesAutonomas  8  "Castilla y León"
+      , ComunidadesAutonomas  9  "Cataluña"
+      , ComunidadesAutonomas 10  "Extremadura"
+      , ComunidadesAutonomas 11  "Galicia"
+      , ComunidadesAutonomas 12  "Madrid"
+      , ComunidadesAutonomas 13  "Navarra"
+      , ComunidadesAutonomas 14  "País Vasco"
+      , ComunidadesAutonomas 15  "Región de Murcia"
+      , ComunidadesAutonomas 16  "La Rioja"
+      , ComunidadesAutonomas 17  "Comunidad Valenciana"
+      , ComunidadesAutonomas 18  "Ceuta"
+      , ComunidadesAutonomas 19  "Melilla"
+      ]
+    deleteWhere ([] :: [Filter DistritosElectorales])
+    mapM_ insert_
+      [ DistritosElectorales  3  7 1 "Baleares" "MALLORCA"
+      , DistritosElectorales  3  7 2 "Baleares" "MENORCA"
+      , DistritosElectorales  3  7 3 "Baleares" "IBIZA-FORMENTERA"
+      , DistritosElectorales  3 35 1 "Las Palmas" "GRAN CANARIA"
+      , DistritosElectorales  3 35 2 "Las Palmas" "LANZAROTE"
+      , DistritosElectorales  3 35 3 "Las Palmas" "FUERTEVENTURA"
+      , DistritosElectorales  3 38 4 "Santa Cruz de Tenerife" "TENERIFE"
+      , DistritosElectorales  3 38 5 "Santa Cruz de Tenerife" "LA PALMA"
+      , DistritosElectorales  3 38 6 "Santa Cruz de Tenerife" "LA GOMERA"
+      , DistritosElectorales  3 38 7 "Santa Cruz de Tenerife" "EL HIERRO"
+
+      , DistritosElectorales  5  7 1 "Baleares" "MALLORCA"
+      , DistritosElectorales  5  7 2 "Baleares" "MENORCA"
+      , DistritosElectorales  5  7 3 "Baleares" "IBIZA"
+      , DistritosElectorales  5  7 4 "Baleares" "FORMENTERA"
+      , DistritosElectorales  5 30 1 "Murcia" "PRIMERA"
+      , DistritosElectorales  5 30 2 "Murcia" "SEGUNDA"
+      , DistritosElectorales  5 30 3 "Murcia" "TERCERA"
+      , DistritosElectorales  5 30 4 "Murcia" "CUARTA"
+      , DistritosElectorales  5 30 5 "Murcia" "QUINTA"
+      , DistritosElectorales  5 33 1 "Asturias" "ORIENTE"
+      , DistritosElectorales  5 33 2 "Asturias" "CENTRO"
+      , DistritosElectorales  5 33 3 "Asturias" "OCCIDENTE"
+      , DistritosElectorales  5 35 1 "Las Palmas" "GRAN CANARIA"
+      , DistritosElectorales  5 35 2 "Las Palmas" "LANZAROTE"
+      , DistritosElectorales  5 35 3 "Las Palmas" "FUERTEVENTURA"
+      , DistritosElectorales  5 38 4 "Santa Cruz de Tenerife" "TENERIFE"
+      , DistritosElectorales  5 38 5 "Santa Cruz de Tenerife" "LA PALMA"
+      , DistritosElectorales  5 38 6 "Santa Cruz de Tenerife" "LA GOMERA"
+      , DistritosElectorales  5 38 7 "Santa Cruz de Tenerife" "EL HIERRO"
+      , DistritosElectorales  6 35 1 "Las Palmas" "GRAN CANARIA"
+      , DistritosElectorales  6 35 2 "Las Palmas" "LANZAROTE"
+      , DistritosElectorales  6 35 3 "Las Palmas" "FUERTEVENTURA"
+      , DistritosElectorales  6 38 4 "Santa Cruz de Tenerife" "TENERIFE"
+      , DistritosElectorales  6 38 5 "Santa Cruz de Tenerife" "LA PALMA"
+      , DistritosElectorales  6 38 6 "Santa Cruz de Tenerife" "LA GOMERA"
+      , DistritosElectorales  6 38 7 "Santa Cruz de Tenerife" "EL HIERRO"
+      , DistritosElectorales 15  1 1 "Álava" "VITORIA-GASTEIZ"
+      , DistritosElectorales 15  1 2 "Álava" "AIRA-AYALA"
+      , DistritosElectorales 15  1 3 "Álava" "RESTO"
+      , DistritosElectorales 15 20 1 "Guipúzcoa" "DEBA-UROLA"
+      , DistritosElectorales 15 20 2 "Guipúzcoa" "BIDASOA-OYARZUN"
+      , DistritosElectorales 15 20 3 "Guipúzcoa" "DONOSTIALDEA"
+      , DistritosElectorales 15 20 4 "Guipúzcoa" "ORIA"
+      , DistritosElectorales 15 48 1 "Vizcaya" "BILBAO"
+      , DistritosElectorales 15 48 2 "Vizcaya" "ENCARTACIONES"
+      , DistritosElectorales 15 48 3 "Vizcaya" "DURANGO-ARRATIA"
+      , DistritosElectorales 15 48 4 "Vizcaya" "BUSTURIA-URIBE"
+      ]
+    liftIO $ putStrLn "Inserted static data"
+
+
+-- |
+-- = Dynamic data
 
 getCandidatura :: Get Candidaturas
 getCandidatura =
@@ -148,6 +288,9 @@ getDatosComunesMunicipio =
   <*> (snd <$> getVotosAfirmativos)
   <*> (snd <$> getVotosNegativos)
   <*> getDatosOficiales
+
+skipToNextLineAfter :: Get a -> Get a
+skipToNextLineAfter item = item <* skip 1
 
 getTipoEleccion :: Get (Text, Int)
 getTipoEleccion = getInt 2
@@ -328,6 +471,7 @@ main = execParser options' >>= \(Options b d u p g) ->
       haveDir <- liftIO $ F.isDirectory b
       if haveDir then do
         runMigration migrateAll
+        insertStaticDataIntoDb
         datFiles <- liftIO $ F.listDirectory b >>= filterM isDatFile
         if not (null datFiles) then do
           forM_ datFiles $ \f -> case head2 f of
