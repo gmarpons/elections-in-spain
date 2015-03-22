@@ -54,19 +54,52 @@ share
   ]
   [persistLowerCase|
     Candidaturas
-      id_candidatura                Text
-      codigo_candidatura            Int
-      tipoEleccion                  Int
-      ano                           Int
-      mes                           Int
-      siglas                        Text sqltype=varchar(50)
-      denominacion                  Text sqltype=varchar(150)
-      codigo_candidatura_provincial Int
-      codigo_candidatura_autonomico Int
-      codigo_candidatura_nacional   Int
-      -- Use a unique column instead of a primary key because PKEY + repsert
-      -- fails (probably a bug)
-      UniqueIdCandidatura id_candidatura
+--      id_candidatura                         Text sqltype=varchar(14)
+      tipoEleccion                           Int
+      ano                                    Int
+      mes                                    Int
+      codigo_candidatura                     Int
+      siglas                                 Text sqltype=varchar(50)
+      denominacion                           Text sqltype=varchar(150)
+      codigo_candidatura_provincial          Int
+      codigo_candidatura_autonomico          Int
+      codigo_candidatura_nacional            Int
+      -- Use a unique multi-value instead of a primary key because PKEY +
+      -- repsert fails (probably a bug)
+      UniqueCandidaturas tipoEleccion ano mes codigo_candidatura
+      deriving Show
+
+    DatosComunesMunicipios
+--      id_datos_comunes_municipios            Text sqltype=varchar(18)
+      tipoEleccion                           Int
+      ano                                    Int
+      mes                                    Int
+      vueltaOPregunta                        Int
+      codigo_comunidad                       Int
+      codigo_provincia                       Int
+      codigo_municipio                       Int
+      num_distrito                           Int
+      nombre_municipio_o_distrito            Text sqltype=varchar(100)
+      codigo_distrito_electoral              Int
+      codigo_partido_judicial                Int
+      codigo_diputacion_provincial           Int
+      codigo_comarca                         Int
+      poblacion_derecho                      Int
+      num_mesas                              Int
+      censo_ine                              Int
+      censo_escrutinio                       Int
+      censo_residentes_extranjeros           Int
+      votantes_residentes_extranejros        Int
+      votantes_primer_avance_participacion   Int
+      votantes_segundo_avance_participacion  Int
+      votos_en_blanco                        Int
+      votos_nulos                            Int
+      votos_a_candidaturas                   Int
+      numero_escanos                         Int
+      votos_afirmativos                      Int
+      votos_negativos                        Int
+      datos_oficiales                        String sqltype=varchar(1)
+      UniqueDatosComunesMunicipios tipoEleccion ano mes vueltaOPregunta codigo_comunidad codigo_provincia codigo_municipio num_distrito
       deriving Show
   |]
 
@@ -86,7 +119,44 @@ getCandidatura =
   <*> (snd <$> getCodigoCandidatura)
   <*> (snd <$> getCodigoCandidatura)
   where
-    mk f (t, t') (a, a') (m, m') (c, c') = f (T.concat [t, a, m, c]) c' t' a' m'
+--    mk f (t, t') (a, a') (m, m') (c, c') = f (T.concat [t, a, m, c]) t' a' m' c'
+    mk f (t, t') (a, a') (m, m') (c, c') = f t' a' m' c'
+
+getDatosComunesMunicipio :: Get DatosComunesMunicipios
+getDatosComunesMunicipio =
+  mk DatosComunesMunicipios
+  <$> getTipoEleccion
+  <*> getAno
+  <*> getMes
+  <*> getVueltaOPregunta
+  <*> getCodigoComunidad
+  <*> getCodigoProvincia
+  <*> getCodigoMunicipio
+  <*> getNumDistrito
+  <*> getNombreMunicipioODistrito
+  <*> (snd <$> getCodigoDistritoElectoral)
+  <*> (snd <$> getCodigoPartidoJudicial)
+  <*> (snd <$> getCodigoDiputacionProvincial)
+  <*> (snd <$> getCodigoComarca)
+  <*> (snd <$> getPoblacionDerecho)
+  <*> (snd <$> getNumeroMesas)
+  <*> (snd <$> getCensoINE)
+  <*> (snd <$> getCensoEscrutinio)
+  <*> (snd <$> getCensoResidentesExtranjeros)
+  <*> (snd <$> getVotantesResidentesExtranjeros)
+  <*> (snd <$> getVotantesPrimerAvanceParticipacion)
+  <*> (snd <$> getVotantesSegundoAvancePArticipacion)
+  <*> (snd <$> getVotosEnBlanco)
+  <*> (snd <$> getVotosNulos)
+  <*> (snd <$> getVotosACandidaturas)
+  <*> (snd <$> getNumeroEscanos)
+  <*> (snd <$> getVotosAfirmativos)
+  <*> (snd <$> getVotosNegativos)
+  <*> getDatosOficiales
+  where
+    mk f (t, t') (a, a') (m, m') (v, v') (cc, cc') (cp, cp') (cm, cm') (nd, nd')
+--      = f (T.concat [t, a, m, v, cc, cp, cm, nd]) t' a' m' v' cc' cp' cm' nd'
+      = f t' a' m' v' cc' cp' cm' nd'
 
 getTipoEleccion :: Get (Text, Int)
 getTipoEleccion = getInt 2
@@ -106,14 +176,93 @@ getSiglas = getText 50
 getDenominacion :: Get Text
 getDenominacion = getText 150
 
+getVueltaOPregunta :: Get (Text, Int)
+getVueltaOPregunta = getInt 1
+
+getCodigoComunidad :: Get (Text, Int)
+getCodigoComunidad = getInt 2
+
+getCodigoProvincia :: Get (Text, Int)
+getCodigoProvincia = getInt 2
+
+getCodigoMunicipio :: Get (Text, Int)
+getCodigoMunicipio = getInt 3
+
+getNumDistrito :: Get (Text, Int)
+getNumDistrito = getInt 2
+
+getNombreMunicipioODistrito :: Get Text
+getNombreMunicipioODistrito = getText 100
+
+getCodigoDistritoElectoral :: Get (Text, Int)
+getCodigoDistritoElectoral = getInt 1
+
+getCodigoPartidoJudicial ::  Get (Text, Int)
+getCodigoPartidoJudicial = getInt 3
+
+getCodigoDiputacionProvincial :: Get (Text, Int)
+getCodigoDiputacionProvincial = getInt 3
+
+getCodigoComarca :: Get (Text, Int)
+getCodigoComarca = getInt 3
+
+getPoblacionDerecho :: Get (Text, Int)
+getPoblacionDerecho = getInt 8
+
+getNumeroMesas :: Get (Text, Int)
+getNumeroMesas = getInt 5
+
+getCensoINE :: Get (Text, Int)
+getCensoINE = getInt 8
+
+getCensoEscrutinio :: Get (Text, Int)
+getCensoEscrutinio = getInt 8
+
+getCensoResidentesExtranjeros :: Get (Text, Int)
+getCensoResidentesExtranjeros = getInt 8
+
+getVotantesResidentesExtranjeros :: Get (Text, Int)
+getVotantesResidentesExtranjeros = getInt 8
+
+getVotantesPrimerAvanceParticipacion :: Get (Text, Int)
+getVotantesPrimerAvanceParticipacion = getInt 8
+
+getVotantesSegundoAvancePArticipacion :: Get (Text, Int)
+getVotantesSegundoAvancePArticipacion = getInt 8
+
+getVotosEnBlanco :: Get (Text, Int)
+getVotosEnBlanco = getInt 8
+
+getVotosNulos :: Get (Text, Int)
+getVotosNulos = getInt 8
+
+getVotosACandidaturas :: Get (Text, Int)
+getVotosACandidaturas = getInt 8
+
+getNumeroEscanos :: Get (Text, Int)
+getNumeroEscanos = getInt 3
+
+getVotosAfirmativos :: Get (Text, Int)
+getVotosAfirmativos = getInt 8
+
+getVotosNegativos :: Get (Text, Int)
+getVotosNegativos = getInt 8
+
+-- | WARNING: partial function, it fails if fewer than 1 byte is left in the
+-- input.
+getDatosOficiales :: Get String
+getDatosOficiales = B8.unpack <$> getByteString 1
+
 -- | Given a number of bytes to read, gets and @Int@ (into the Get monad) both
--- as a number and as Text. WARNING: partial function, uses @read@, so if fails
--- if some of the obtained bytes is not a decimal digit.
+-- as a number and as Text. WARNING: partial function, uses @read@, so it fails
+-- if some of the obtained bytes is not a decimal digit, or fewer than @n@ bytes
+-- are left in the input.
 getInt :: Int -> Get (Text, Int)
 getInt n = (T.pack &&& read) . B8.unpack <$> getByteString n
 
 -- | Given a number of bytes to read, gets (into the Get monad) the end-stripped
--- @Text@ represented by those bytes.
+-- @Text@ represented by those bytes. WARNING: partial function, it fails if
+-- fewer than @n@ bytes are left in the input.
 getText :: Int -> Get Text
 getText n = T.stripEnd . T.pack . B8.unpack <$> getByteString n
 
@@ -191,7 +340,8 @@ main = execParser options' >>= \(Options b d u p g) ->
         datFiles <- liftIO $ F.listDirectory b >>= filterM isDatFile
         if not (null datFiles) then do
           forM_ datFiles $ \f -> case head2 f of
-            "03" -> sourceFile f $= conduitGet' getCandidatura $$ sinkToDb
+            "03" -> readFileIntoDb f getCandidatura
+            "05" -> readFileIntoDb f getDatosComunesMunicipio
             _    -> return ()
           let tables = ["candidaturas"]
           forM_ [(u_, t) | u_ <- g, t <- tables] $ \(user_, table) ->
@@ -202,15 +352,9 @@ main = execParser options' >>= \(Options b d u p g) ->
   where
     options' = info (helper <*> options) helpMessage
     pgConnOpts d u p = B8.pack $ concat [d, u, p]
-    expWhen :: (MonadIO m, MonadCatch m) => String -> SomeException -> m ()
-    expWhen msg e = do
-      liftIO $ put2Ln >> putStr "Caught when " >> putStr msg >> putStr " :"
-      liftIO $ print e >> put2Ln
-    put2Ln = putStrLn "" >> putStrLn ""
     isDatFile f = do
       let hasDatExtension = T.toUpper (fromMaybe "" (F.extension f)) == "DAT"
       liftM (hasDatExtension &&) (F.isFile f)
-    conduitGet' fGet = conduitGet (skipToNextLineAfter fGet)
     head2 file = T.take 2 (either id id (F.toText (F.filename file)))
 
 grantAccess :: (MonadBaseControl IO m, MonadLogger m, MonadIO m)
@@ -220,5 +364,27 @@ grantAccess t u = rawExecute (T.concat ["GRANT SELECT ON ", t," TO ", u']) []
   where
     u' = T.pack u
 
-sinkToDb :: (MonadResource m) => Sink Candidaturas (ReaderT SqlBackend m) ()
+sinkToDb :: ( MonadResource m
+            , PersistEntity a, PersistEntityBackend a ~ SqlBackend)
+            =>
+            Sink a (ReaderT SqlBackend m) ()
 sinkToDb = awaitForever $ \c -> lift $ upsert c []
+
+readFileIntoDb :: forall a m.
+                  ( MonadResource m, MonadIO m, MonadCatch m
+                  , PersistEntity a, PersistEntityBackend a ~ SqlBackend)
+                  =>
+                  F.FilePath -> Get a -> ReaderT SqlBackend m ()
+readFileIntoDb file fGet =
+  handleAll (expWhen "upserting rows") $ do
+    sourceFile file $= conduitGet (skipToNextLineAfter fGet) $$ sinkToDb
+    -- Works even with empty list!!
+    let name = T.filter (/='"') $ tableName (head ([] :: [a]))
+    liftIO $ putStr "Upserted to " >> print name
+
+expWhen :: (MonadIO m, MonadCatch m) => String -> SomeException -> m ()
+expWhen msg e = do
+  liftIO $ put2Ln >> putStr "Caught when " >> putStr msg >> putStr " :"
+  liftIO $ print e >> put2Ln
+  where
+    put2Ln = putStrLn "" >> putStrLn ""
