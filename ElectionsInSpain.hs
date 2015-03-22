@@ -27,15 +27,17 @@ import           Data.Binary
 import           Data.Binary.Get
 import qualified Data.ByteString.Char8             as B8
 import           Data.Conduit
-import           Data.Conduit.Combinators          hiding (concat, print)
+import           Data.Conduit.Combinators          hiding (concat, filterM,
+                                                    print, null, mapM_)
 import           Data.Conduit.Serialization.Binary
+import           Data.Maybe
 import           Data.String
 import           Data.Text                         (Text)
 import qualified Data.Text                         as T
 import           Database.Persist                  hiding (get)
 import           Database.Persist.Postgresql       hiding (get)
 import           Database.Persist.TH
-import           Filesystem.Path.CurrentOS         ((</>))
+import qualified Filesystem                        as F
 import qualified Filesystem.Path.CurrentOS         as F
 import           Options.Applicative
 
@@ -183,13 +185,20 @@ main :: IO ()
 main = execParser options' >>= \(Options b d u p g) ->
   runNoLoggingT $ withPostgresqlPool (pgConnOpts d u p) 10 $ \pool ->
     liftIO $ flip runSqlPersistMPool pool $ do
-      runMigration migrateAll
-      let fileName = b </> "03041105.DAT"
-      sourceFile fileName $= conduitGet (skipToNextLineAfter getCandidatura) $$ sinkToDb
-      let tables = ["candidaturas"]
-      forM_ [(u_, t) | u_ <- g, t <- tables] $ \(user_, table) ->
-        handleAll (expWhen ("granting access privileges for user " ++ user_)) $
-          grantAccess table user_
+      haveDir <- liftIO $ F.isDirectory b
+      if haveDir then do
+        runMigration migrateAll
+        datFiles <- liftIO $ F.listDirectory b >>= filterM isDatFile
+        if not (null datFiles) then do
+          forM_ datFiles $ \f -> case head2 f of
+            "03" -> sourceFile f $= conduitGet' getCandidatura $$ sinkToDb
+            _    -> return ()
+          let tables = ["candidaturas"]
+          forM_ [(u_, t) | u_ <- g, t <- tables] $ \(user_, table) ->
+            handleAll (expWhen ("granting access privileges for user " ++ user_)) $
+            grantAccess table user_
+          else liftIO $ putStrLn $ "Failed: no .DAT files found in " ++ show b
+        else liftIO $ putStrLn $ "Failed: " ++ show b ++ " is not a directory"
   where
     options' = info (helper <*> options) helpMessage
     pgConnOpts d u p = B8.pack $ concat [d, u, p]
@@ -198,6 +207,11 @@ main = execParser options' >>= \(Options b d u p g) ->
       liftIO $ put2Ln >> putStr "Caught when " >> putStr msg >> putStr " :"
       liftIO $ print e >> put2Ln
     put2Ln = putStrLn "" >> putStrLn ""
+    isDatFile f = do
+      let hasDatExtension = T.toUpper (fromMaybe "" (F.extension f)) == "DAT"
+      liftM (hasDatExtension &&) (F.isFile f)
+    conduitGet' fGet = conduitGet (skipToNextLineAfter fGet)
+    head2 file = T.take 2 (either id id (F.toText (F.filename file)))
 
 grantAccess :: (MonadBaseControl IO m, MonadLogger m, MonadIO m)
                =>
