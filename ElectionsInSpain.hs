@@ -34,6 +34,8 @@ import           Data.Maybe
 import           Data.String
 import           Data.Text                         (Text)
 import qualified Data.Text                         as T
+import           Data.Time.Calendar
+import           Data.Time.LocalTime
 import           Database.Persist                  hiding (get)
 import           Database.Persist.Postgresql       hiding (get)
 import           Database.Persist.TH
@@ -80,6 +82,25 @@ share
       Primary codigoTipoProcesoElectoral codigoProvincia codigoDistritoElectoral
       deriving Show
 
+    -- In the following tables use a multi-valued unique instead of a primary
+    -- key because PKEY + repsert fails (probably a bug), and upsert is easier
+    -- to use (no need of constructing a Key).
+
+    ProcesosElectorales         -- 02xxaamm.DAT
+      tipoEleccion                           Int
+      ano                                    Int
+      mes                                    Int
+      vuelta                                 Int
+      tipoAmbito                             String sqltype=varchar(1)
+      ambito                                 Int
+      fecha                                  Day
+      horaApertura                           TimeOfDay
+      horaCierre                             TimeOfDay
+      horaPrimerAvanceParticipacion          TimeOfDay
+      horaSegundoAvanceParticipacion         TimeOfDay
+      UniqueProcesosElectorales tipoEleccion ano mes vuelta tipoAmbito ambito
+      deriving Show
+
     Candidaturas                -- 03xxaamm.DAT
       tipoEleccion                           Int
       ano                                    Int
@@ -90,8 +111,6 @@ share
       codigoCandidaturaProvincial            Int
       codigoCandidaturaAutonomico            Int
       codigoCandidaturaNacional              Int
-      -- Use a unique multi-value instead of a primary key because PKEY +
-      -- repsert fails (probably a bug)
       UniqueCandidaturas tipoEleccion ano mes codigoCandidatura
       deriving Show
 
@@ -244,6 +263,21 @@ insertStaticDataIntoDb =
 -- |
 -- = Dynamic data
 
+getProcesoElectoral :: Get ProcesosElectorales
+getProcesoElectoral =
+  ProcesosElectorales
+  <$> (snd <$> getTipoEleccion)
+  <*> (snd <$> getAno)
+  <*> (snd <$> getMes)
+  <*> (snd <$> getVuelta)
+  <*> getTipoAmbito
+  <*> (snd <$> getAmbito)
+  <*> getFecha
+  <*> getHora
+  <*> getHora
+  <*> getHora
+  <*> getHora
+
 getCandidatura :: Get Candidaturas
 getCandidatura =
   Candidaturas
@@ -300,6 +334,32 @@ getAno = getInt 4
 
 getMes :: Get (Text, Int)
 getMes = getInt 2
+
+getVuelta :: Get (Text, Int)
+getVuelta = getInt 1
+
+-- | WARNING: partial function, it fails if fewer than 1 byte is left in the
+-- input.
+getTipoAmbito :: Get String
+getTipoAmbito = B8.unpack <$> getByteString 1
+
+getAmbito :: Get (Text, Int)
+getAmbito = getInt 2
+
+getFecha :: Get Day
+getFecha =
+  (\d m y -> fromGregorian y m d)
+  <$> (snd <$> getInt 2)
+  <*> (snd <$> getInt 2)
+  <*> (fromIntegral . snd <$> getInt 4)
+
+getHora :: Get TimeOfDay
+getHora =
+  TimeOfDay
+  <$> (snd <$> getInt 2)
+  <*  skip 1                    -- ":"
+  <*> (snd <$> getInt 2)
+  <*> pure 0
 
 getCodigoCandidatura :: Get (Text, Int)
 getCodigoCandidatura = getInt 6
@@ -475,6 +535,7 @@ main = execParser options' >>= \(Options b d u p g) ->
         datFiles <- liftIO $ F.listDirectory b >>= filterM isDatFile
         if not (null datFiles) then do
           forM_ datFiles $ \f -> case head2 f of
+            "02" -> readFileIntoDb f getProcesoElectoral
             "03" -> readFileIntoDb f getCandidatura
             "05" -> readFileIntoDb f getDatosComunesMunicipio
             _    -> return ()
