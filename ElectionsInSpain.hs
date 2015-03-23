@@ -133,7 +133,7 @@ share
       UniqueCandidatos tipoEleccion ano mes vuelta codigoCandidatura numeroOrden
       deriving Show
 
-    DatosComunesMunicipios      -- 05xxaamm.DAT
+    DatosMunicipios             -- 05xxaamm.DAT
       tipoEleccion                           Int
       ano                                    Int
       mes                                    Int
@@ -162,7 +162,7 @@ share
       votosAfirmativos                       Int
       votosNegativos                         Int
       datosOficiales                         String sqltype=varchar(1)
-      UniqueDatosComunesMunicipios tipoEleccion ano mes vueltaOPregunta codigoProvincia codigoMunicipio distritoMunicipal
+      UniqueDatosMunicipios tipoEleccion ano mes vueltaOPregunta codigoProvincia codigoMunicipio distritoMunicipal
       deriving Show
 
     VotosMunicipios             -- 06xxaamm.DAT
@@ -179,7 +179,7 @@ share
       UniqueVotosMunicipios tipoEleccion ano mes vuelta codigoProvincia codigoMunicipio distritoMunicipal codigoCandidatura
       deriving Show
 
-    DatosComunesAmbitoSuperior  -- 07xxaamm.DAT
+    DatosAmbitoSuperior         -- 07xxaamm.DAT
       tipoEleccion                           Int
       ano                                    Int
       mes                                    Int
@@ -203,7 +203,7 @@ share
       votosAfirmativos                       Int
       votosNegativos                         Int
       datosOficiales                         String sqltype=varchar(1)
-      UniqueDatosComunesAmbitoSuperior tipoEleccion ano mes vueltaOPregunta codigoProvincia codigoDistritoElectoral
+      UniqueDatosAmbitoSuperior tipoEleccion ano mes vueltaOPregunta codigoProvincia codigoDistritoElectoral
       deriving Show
 
     VotosAmbitoSuperior         -- 08xxaamm.DAT
@@ -384,9 +384,9 @@ getCandidato =
   <*> getDni
   <*> getElegido
 
-getDatosComunesMunicipio :: Get DatosComunesMunicipios
-getDatosComunesMunicipio =
-  DatosComunesMunicipios
+getDatosMunicipio :: Get DatosMunicipios
+getDatosMunicipio =
+  DatosMunicipios
   <$> (snd <$> getTipoEleccion)
   <*> (snd <$> getAno)
   <*> (snd <$> getMes)
@@ -430,9 +430,9 @@ getVotosMunicipio =
   <*> (snd <$> getVotos)
   <*> (snd <$> getNumeroCandidatos3)
 
-getDatosComunesAmbitoSuperior :: Get DatosComunesAmbitoSuperior
-getDatosComunesAmbitoSuperior =
-  DatosComunesAmbitoSuperior
+getDatosAmbitoSuperior :: Get DatosAmbitoSuperior
+getDatosAmbitoSuperior =
+  DatosAmbitoSuperior
   <$> (snd <$> getTipoEleccion)
   <*> (snd <$> getAno)
   <*> (snd <$> getMes)
@@ -738,12 +738,12 @@ main = execParser options' >>= \(Options b d u p g) ->
         datFiles <- liftIO $ F.listDirectory b >>= filterM isDatFile
         if not (null datFiles)
           then forM_ datFiles $ \f -> case head2 f of
-          -- "02" -> readFileIntoDb f g getProcesoElectoral
-          -- "03" -> readFileIntoDb f g getCandidatura
-          -- "04" -> readFileIntoDb f g getCandidato
-          -- "05" -> readFileIntoDb f g getDatosComunesMunicipio
-          -- "06" -> readFileIntoDb f g getVotosMunicipio
-          -- "07" -> readFileIntoDb f g getDatosComunesAmbitoSuperior
+          "02" -> readFileIntoDb f g getProcesoElectoral
+          "03" -> readFileIntoDb f g getCandidatura
+          "04" -> readFileIntoDb f g getCandidato
+          "05" -> readFileIntoDb f g getDatosMunicipio
+          "06" -> readFileIntoDb f g getVotosMunicipio
+          "07" -> readFileIntoDb f g getDatosAmbitoSuperior
           "08" -> readFileIntoDb f g getVotosAmbitoSuperior
           _    -> return ()
           else liftIO $ putStrLn $ "Failed: no .DAT files found in " ++ show b
