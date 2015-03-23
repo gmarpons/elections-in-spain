@@ -162,7 +162,7 @@ share
       votosAfirmativos                       Int
       votosNegativos                         Int
       datosOficiales                         String sqltype=varchar(1)
-      UniqueDatosComunesMunicipios tipoEleccion ano mes vueltaOPregunta codigoComunidad codigoProvincia codigoMunicipio distritoMunicipal
+      UniqueDatosComunesMunicipios tipoEleccion ano mes vueltaOPregunta codigoProvincia codigoMunicipio distritoMunicipal
       deriving Show
 
     VotosMunicipios             -- 06xxaamm.DAT
@@ -203,7 +203,7 @@ share
       votosAfirmativos                       Int
       votosNegativos                         Int
       datosOficiales                         String sqltype=varchar(1)
-      UniqueDatosComunesAmbitoSuperior tipoEleccion ano mes vueltaOPregunta codigoComunidad codigoProvincia codigoDistritoElectoral
+      UniqueDatosComunesAmbitoSuperior tipoEleccion ano mes vueltaOPregunta codigoProvincia codigoDistritoElectoral
       deriving Show
   |]
 
