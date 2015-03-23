@@ -205,6 +205,20 @@ share
       datosOficiales                         String sqltype=varchar(1)
       UniqueDatosComunesAmbitoSuperior tipoEleccion ano mes vueltaOPregunta codigoProvincia codigoDistritoElectoral
       deriving Show
+
+    VotosAmbitoSuperior         -- 08xxaamm.DAT
+      tipoEleccion                           Int
+      ano                                    Int
+      mes                                    Int
+      vuelta                                 Int
+      codigoComunidad                        Int
+      codigoProvincia                        Int
+      codigoDistritoElectoral                Int
+      codigoCandidatura                      Int
+      votos                                  Int
+      numeroCandidatos                       Int
+      UniqueVotosAmbitoSuperior tipoEleccion ano mes vuelta codigoProvincia codigoDistritoElectoral codigoCandidatura
+      deriving Show
   |]
 
 
@@ -414,7 +428,7 @@ getVotosMunicipio =
   <*> (snd <$> getDistritoMunicipal)
   <*> (snd <$> getCodigoCandidatura)
   <*> (snd <$> getVotos)
-  <*> (snd <$> getNumeroCandidatos)
+  <*> (snd <$> getNumeroCandidatos3)
 
 getDatosComunesAmbitoSuperior :: Get DatosComunesAmbitoSuperior
 getDatosComunesAmbitoSuperior =
@@ -442,6 +456,20 @@ getDatosComunesAmbitoSuperior =
   <*> (snd <$> getVotosAfirmativos)
   <*> (snd <$> getVotosNegativos)
   <*> getDatosOficiales
+
+getVotosAmbitoSuperior :: Get VotosAmbitoSuperior
+getVotosAmbitoSuperior =
+  VotosAmbitoSuperior
+  <$> (snd <$> getTipoEleccion)
+  <*> (snd <$> getAno)
+  <*> (snd <$> getMes)
+  <*> (snd <$> getVuelta)
+  <*> (snd <$> getCodigoComunidad)
+  <*> (snd <$> getCodigoProvincia)
+  <*> (snd <$> getCodigoDistritoElectoral)
+  <*> (snd <$> getCodigoCandidatura)
+  <*> (snd <$> getVotos)
+  <*> (snd <$> getNumeroCandidatos5)
 
 skipToNextLineAfter :: Get a -> Get a
 skipToNextLineAfter item = item <* skip 1
@@ -612,8 +640,11 @@ getElegido = B8.unpack <$> getByteString 1
 getVotos :: Get (Text, Int)
 getVotos = getInt 8
 
-getNumeroCandidatos :: Get (Text, Int)
-getNumeroCandidatos = getInt 3
+getNumeroCandidatos3 :: Get (Text, Int)
+getNumeroCandidatos3 = getInt 3
+
+getNumeroCandidatos5 :: Get (Text, Int)
+getNumeroCandidatos5 = getInt 5
 
 getNombreAmbitoTerritorial :: Get Text
 getNombreAmbitoTerritorial = getText 50
@@ -712,7 +743,8 @@ main = execParser options' >>= \(Options b d u p g) ->
           -- "04" -> readFileIntoDb f g getCandidato
           -- "05" -> readFileIntoDb f g getDatosComunesMunicipio
           -- "06" -> readFileIntoDb f g getVotosMunicipio
-          "07" -> readFileIntoDb f g getDatosComunesAmbitoSuperior
+          -- "07" -> readFileIntoDb f g getDatosComunesAmbitoSuperior
+          "08" -> readFileIntoDb f g getVotosAmbitoSuperior
           _    -> return ()
           else liftIO $ putStrLn $ "Failed: no .DAT files found in " ++ show b
         else liftIO $ putStrLn $ "Failed: " ++ show b ++ " is not a directory"
