@@ -219,6 +219,32 @@ share
       numeroCandidatos                       Int
       UniqueVotosAmbitoSuperior tipoEleccion ano mes vuelta codigoProvincia codigoDistritoElectoral codigoCandidatura
       deriving Show
+
+    DatosMesas                  -- 09xxaamm.DAT
+      tipoEleccion                           Int
+      ano                                    Int
+      mes                                    Int
+      vueltaOPregunta                        Int
+      codigoComunidad                        Int
+      codigoProvincia                        Int
+      codigoMunicipio                        Int
+      distritoMunicipal                      Int
+      codigoSeccion                          String sqltype=varchar(4)
+      codigoMesa                             String sqltype=varchar(1)
+      censoIne                               Int
+      censoEscrutinio                        Int
+      censoResidentesExtranjeros             Int
+      votantesResidentesExtranejros          Int
+      votantesPrimerAvanceParticipacion      Int
+      votantesSegundoAvanceParticipacion     Int
+      votosEnBlanco                          Int
+      votosNulos                             Int
+      votosACandidaturas                     Int
+      votosAfirmativos                       Int
+      votosNegativos                         Int
+      datosOficiales                         String sqltype=varchar(1)
+      UniqueDatosMesas tipoEleccion ano mes vueltaOPregunta codigoProvincia codigoMunicipio distritoMunicipal codigoSeccion codigoMesa
+      deriving Show
   |]
 
 
@@ -402,18 +428,18 @@ getDatosMunicipio =
   <*> (snd <$> getCodigoComarca)
   <*> (snd <$> getPoblacionDerecho)
   <*> (snd <$> getNumeroMesas)
-  <*> (snd <$> getCensoINE)
-  <*> (snd <$> getCensoEscrutinio)
-  <*> (snd <$> getCensoResidentesExtranjeros)
-  <*> (snd <$> getVotantesResidentesExtranjeros)
-  <*> (snd <$> getVotantesPrimerAvanceParticipacion)
-  <*> (snd <$> getVotantesSegundoAvancePArticipacion)
-  <*> (snd <$> getVotosEnBlanco)
-  <*> (snd <$> getVotosNulos)
-  <*> (snd <$> getVotosACandidaturas)
-  <*> (snd <$> getNumeroEscanos3)
-  <*> (snd <$> getVotosAfirmativos)
-  <*> (snd <$> getVotosNegativos)
+  <*> (snd <$> getCensoINE 8)
+  <*> (snd <$> getCensoEscrutinio 8)
+  <*> (snd <$> getCensoResidentesExtranjeros 8)
+  <*> (snd <$> getVotantesResidentesExtranjeros 8)
+  <*> (snd <$> getVotantesPrimerAvanceParticipacion 8)
+  <*> (snd <$> getVotantesSegundoAvancePArticipacion 8)
+  <*> (snd <$> getVotosEnBlanco 8)
+  <*> (snd <$> getVotosNulos 8)
+  <*> (snd <$> getVotosACandidaturas 8)
+  <*> (snd <$> getNumeroEscanos 3)
+  <*> (snd <$> getVotosAfirmativos 8)
+  <*> (snd <$> getVotosNegativos 8)
   <*> getDatosOficiales
 
 getVotosMunicipio :: Get VotosMunicipios
@@ -428,7 +454,7 @@ getVotosMunicipio =
   <*> (snd <$> getDistritoMunicipal)
   <*> (snd <$> getCodigoCandidatura)
   <*> (snd <$> getVotos)
-  <*> (snd <$> getNumeroCandidatos3)
+  <*> (snd <$> getNumeroCandidatos 3)
 
 getDatosAmbitoSuperior :: Get DatosAmbitoSuperior
 getDatosAmbitoSuperior =
@@ -443,18 +469,18 @@ getDatosAmbitoSuperior =
   <*> getNombreAmbitoTerritorial
   <*> (snd <$> getPoblacionDerecho)
   <*> (snd <$> getNumeroMesas)
-  <*> (snd <$> getCensoINE)
-  <*> (snd <$> getCensoEscrutinio)
-  <*> (snd <$> getCensoResidentesExtranjeros)
-  <*> (snd <$> getVotantesResidentesExtranjeros)
-  <*> (snd <$> getVotantesPrimerAvanceParticipacion)
-  <*> (snd <$> getVotantesSegundoAvancePArticipacion)
-  <*> (snd <$> getVotosEnBlanco)
-  <*> (snd <$> getVotosNulos)
-  <*> (snd <$> getVotosACandidaturas)
-  <*> (snd <$> getNumeroEscanos6)
-  <*> (snd <$> getVotosAfirmativos)
-  <*> (snd <$> getVotosNegativos)
+  <*> (snd <$> getCensoINE 8)
+  <*> (snd <$> getCensoEscrutinio 8)
+  <*> (snd <$> getCensoResidentesExtranjeros 8)
+  <*> (snd <$> getVotantesResidentesExtranjeros 8)
+  <*> (snd <$> getVotantesPrimerAvanceParticipacion 8)
+  <*> (snd <$> getVotantesSegundoAvancePArticipacion 8)
+  <*> (snd <$> getVotosEnBlanco 8)
+  <*> (snd <$> getVotosNulos 8)
+  <*> (snd <$> getVotosACandidaturas 8)
+  <*> (snd <$> getNumeroEscanos 6)
+  <*> (snd <$> getVotosAfirmativos 8)
+  <*> (snd <$> getVotosNegativos 8)
   <*> getDatosOficiales
 
 getVotosAmbitoSuperior :: Get VotosAmbitoSuperior
@@ -469,7 +495,33 @@ getVotosAmbitoSuperior =
   <*> (snd <$> getCodigoDistritoElectoral)
   <*> (snd <$> getCodigoCandidatura)
   <*> (snd <$> getVotos)
-  <*> (snd <$> getNumeroCandidatos5)
+  <*> (snd <$> getNumeroCandidatos 5)
+
+getDatosMesa :: Get DatosMesas
+getDatosMesa =
+  DatosMesas
+  <$> (snd <$> getTipoEleccion)
+  <*> (snd <$> getAno)
+  <*> (snd <$> getMes)
+  <*> (snd <$> getVueltaOPregunta)
+  <*> (snd <$> getCodigoComunidad)
+  <*> (snd <$> getCodigoProvincia)
+  <*> (snd <$> getCodigoMunicipio)
+  <*> (snd <$> getDistritoMunicipal)
+  <*> getCodigoSeccion
+  <*> getCodigoMesa
+  <*> (snd <$> getCensoINE 7)
+  <*> (snd <$> getCensoEscrutinio 7)
+  <*> (snd <$> getCensoResidentesExtranjeros 7)
+  <*> (snd <$> getVotantesResidentesExtranjeros 7)
+  <*> (snd <$> getVotantesPrimerAvanceParticipacion 7)
+  <*> (snd <$> getVotantesSegundoAvancePArticipacion 7)
+  <*> (snd <$> getVotosEnBlanco 7)
+  <*> (snd <$> getVotosNulos 7)
+  <*> (snd <$> getVotosACandidaturas 7)
+  <*> (snd <$> getVotosAfirmativos 7)
+  <*> (snd <$> getVotosNegativos 7)
+  <*> getDatosOficiales
 
 skipToNextLineAfter :: Get a -> Get a
 skipToNextLineAfter item = item <* skip 1
@@ -555,44 +607,41 @@ getPoblacionDerecho = getInt 8
 getNumeroMesas :: Get (Text, Int)
 getNumeroMesas = getInt 5
 
-getCensoINE :: Get (Text, Int)
-getCensoINE = getInt 8
+getCensoINE :: Int -> Get (Text, Int)
+getCensoINE = getInt
 
-getCensoEscrutinio :: Get (Text, Int)
-getCensoEscrutinio = getInt 8
+getCensoEscrutinio :: Int -> Get (Text, Int)
+getCensoEscrutinio = getInt
 
-getCensoResidentesExtranjeros :: Get (Text, Int)
-getCensoResidentesExtranjeros = getInt 8
+getCensoResidentesExtranjeros :: Int -> Get (Text, Int)
+getCensoResidentesExtranjeros = getInt
 
-getVotantesResidentesExtranjeros :: Get (Text, Int)
-getVotantesResidentesExtranjeros = getInt 8
+getVotantesResidentesExtranjeros :: Int -> Get (Text, Int)
+getVotantesResidentesExtranjeros = getInt
 
-getVotantesPrimerAvanceParticipacion :: Get (Text, Int)
-getVotantesPrimerAvanceParticipacion = getInt 8
+getVotantesPrimerAvanceParticipacion :: Int -> Get (Text, Int)
+getVotantesPrimerAvanceParticipacion = getInt
 
-getVotantesSegundoAvancePArticipacion :: Get (Text, Int)
-getVotantesSegundoAvancePArticipacion = getInt 8
+getVotantesSegundoAvancePArticipacion :: Int -> Get (Text, Int)
+getVotantesSegundoAvancePArticipacion = getInt
 
-getVotosEnBlanco :: Get (Text, Int)
-getVotosEnBlanco = getInt 8
+getVotosEnBlanco :: Int -> Get (Text, Int)
+getVotosEnBlanco = getInt
 
-getVotosNulos :: Get (Text, Int)
-getVotosNulos = getInt 8
+getVotosNulos :: Int -> Get (Text, Int)
+getVotosNulos = getInt
 
-getVotosACandidaturas :: Get (Text, Int)
-getVotosACandidaturas = getInt 8
+getVotosACandidaturas :: Int -> Get (Text, Int)
+getVotosACandidaturas = getInt
 
-getNumeroEscanos3 :: Get (Text, Int)
-getNumeroEscanos3 = getInt 3
+getNumeroEscanos :: Int -> Get (Text, Int)
+getNumeroEscanos = getInt
 
-getNumeroEscanos6 :: Get (Text, Int)
-getNumeroEscanos6 = getInt 6
+getVotosAfirmativos :: Int -> Get (Text, Int)
+getVotosAfirmativos = getInt
 
-getVotosAfirmativos :: Get (Text, Int)
-getVotosAfirmativos = getInt 8
-
-getVotosNegativos :: Get (Text, Int)
-getVotosNegativos = getInt 8
+getVotosNegativos :: Int -> Get (Text, Int)
+getVotosNegativos = getInt
 
 getDatosOficiales :: Get String
 getDatosOficiales = B8.unpack <$> getByteString 1
@@ -640,14 +689,17 @@ getElegido = B8.unpack <$> getByteString 1
 getVotos :: Get (Text, Int)
 getVotos = getInt 8
 
-getNumeroCandidatos3 :: Get (Text, Int)
-getNumeroCandidatos3 = getInt 3
-
-getNumeroCandidatos5 :: Get (Text, Int)
-getNumeroCandidatos5 = getInt 5
+getNumeroCandidatos :: Int -> Get (Text, Int)
+getNumeroCandidatos = getInt
 
 getNombreAmbitoTerritorial :: Get Text
 getNombreAmbitoTerritorial = getText 50
+
+getCodigoSeccion :: Get String
+getCodigoSeccion = B8.unpack <$> getByteString 4
+
+getCodigoMesa :: Get String
+getCodigoMesa = B8.unpack <$> getByteString 1
 
 -- | Given a number of bytes to read, gets and 'Int' (into the Get monad) both
 -- as a number and as Text. WARNING: partial function, uses 'read', so it fails
@@ -745,6 +797,7 @@ main = execParser options' >>= \(Options b d u p g) ->
           "06" -> readFileIntoDb f g getVotosMunicipio
           "07" -> readFileIntoDb f g getDatosAmbitoSuperior
           "08" -> readFileIntoDb f g getVotosAmbitoSuperior
+          "09" -> readFileIntoDb f g getDatosMesa
           _    -> return ()
           else liftIO $ putStrLn $ "Failed: no .DAT files found in " ++ show b
         else liftIO $ putStrLn $ "Failed: " ++ show b ++ " is not a directory"
