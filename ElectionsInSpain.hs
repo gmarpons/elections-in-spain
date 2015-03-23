@@ -123,14 +123,14 @@ share
       codigoDistritoElectoral                Int
       codigoMunicipio                        Int
       codigoCandidatura                      Int
-      numeroOrdenCandidato                   Int
+      numeroOrden                            Int
       tipoCandidato                          String sqltype=varchar(1)
       nombreCandidato                        Text sqltype=varchar(75)
       sexo                                   String sqltype=varchar(1)
       fechaNacimiento                        Day Maybe
       dni                                    Text Maybe sqltype=varchar(10)
       elegido                                String sqltype=varchar(1)
-      UniqueCandidatos tipoEleccion ano mes vuelta codigoCandidatura numeroOrdenCandidato
+      UniqueCandidatos tipoEleccion ano mes vuelta codigoCandidatura numeroOrden
       deriving Show
 
     DatosComunesMunicipios      -- 05xxaamm.DAT
@@ -163,6 +163,20 @@ share
       votosNegativos                         Int
       datosOficiales                         String sqltype=varchar(1)
       UniqueDatosComunesMunicipios tipoEleccion ano mes vueltaOPregunta codigoComunidad codigoProvincia codigoMunicipio distritoMunicipal
+      deriving Show
+
+    VotosMunicipios             -- 06xxaamm.DAT
+      tipoEleccion                           Int
+      ano                                    Int
+      mes                                    Int
+      vuelta                                 Int
+      codigoProvincia                        Int
+      codigoMunicipio                        Int
+      distritoMunicipal                      Int
+      codigoCandidatura                      Int
+      votos                                  Int
+      numeroCandidatos                       Int
+      UniqueVotosMunicipios tipoEleccion ano mes vuelta codigoProvincia codigoMunicipio distritoMunicipal codigoCandidatura
       deriving Show
   |]
 
@@ -321,7 +335,7 @@ getCandidato =
   <*> (snd <$> getCodigoDistritoElectoral)
   <*> (snd <$> getCodigoMunicipio)
   <*> (snd <$> getCodigoCandidatura)
-  <*> (snd <$> getNumeroOrdenCandidato)
+  <*> (snd <$> getNumeroOrden)
   <*> getTipoCandidato
   <*> getNombreCandidato
   <*> getSexo
@@ -360,6 +374,20 @@ getDatosComunesMunicipio =
   <*> (snd <$> getVotosAfirmativos)
   <*> (snd <$> getVotosNegativos)
   <*> getDatosOficiales
+
+getVotosMunicipio :: Get VotosMunicipios
+getVotosMunicipio =
+  VotosMunicipios
+  <$> (snd <$> getTipoEleccion)
+  <*> (snd <$> getAno)
+  <*> (snd <$> getMes)
+  <*> (snd <$> getVuelta)
+  <*> (snd <$> getCodigoProvincia)
+  <*> (snd <$> getCodigoMunicipio)
+  <*> (snd <$> getDistritoMunicipal)
+  <*> (snd <$> getCodigoCandidatura)
+  <*> (snd <$> getVotos)
+  <*> (snd <$> getNumeroCandidatos)
 
 skipToNextLineAfter :: Get a -> Get a
 skipToNextLineAfter item = item <* skip 1
@@ -484,8 +512,8 @@ getVotosNegativos = getInt 8
 getDatosOficiales :: Get String
 getDatosOficiales = B8.unpack <$> getByteString 1
 
-getNumeroOrdenCandidato :: Get (Text, Int)
-getNumeroOrdenCandidato = getInt 3
+getNumeroOrden :: Get (Text, Int)
+getNumeroOrden = getInt 3
 
 getTipoCandidato :: Get String
 getTipoCandidato = B8.unpack <$> getByteString 1
@@ -523,6 +551,12 @@ getDni = do
 
 getElegido :: Get String
 getElegido = B8.unpack <$> getByteString 1
+
+getVotos :: Get (Text, Int)
+getVotos = getInt 8
+
+getNumeroCandidatos :: Get (Text, Int)
+getNumeroCandidatos = getInt 3
 
 -- | Given a number of bytes to read, gets and 'Int' (into the Get monad) both
 -- as a number and as Text. WARNING: partial function, uses 'read', so it fails
@@ -617,6 +651,7 @@ main = execParser options' >>= \(Options b d u p g) ->
           "03" -> readFileIntoDb f g getCandidatura
           "04" -> readFileIntoDb f g getCandidato
           "05" -> readFileIntoDb f g getDatosComunesMunicipio
+          "06" -> readFileIntoDb f g getVotosMunicipio
           _    -> return ()
           else liftIO $ putStrLn $ "Failed: no .DAT files found in " ++ show b
         else liftIO $ putStrLn $ "Failed: " ++ show b ++ " is not a directory"
