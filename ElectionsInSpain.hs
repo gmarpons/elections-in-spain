@@ -114,6 +114,25 @@ share
       UniqueCandidaturas tipoEleccion ano mes codigoCandidatura
       deriving Show
 
+    Candidatos                  -- 04xxaamm.DAT
+      tipoEleccion                           Int
+      ano                                    Int
+      mes                                    Int
+      vuelta                                 Int
+      codigoProvincia                        Int
+      codigoDistritoElectoral                Int
+      codigoMunicipio                        Int
+      codigoCandidatura                      Int
+      numeroOrdenCandidato                   Int
+      tipoCandidato                          String sqltype=varchar(1)
+      nombreCandidato                        Text sqltype=varchar(75)
+      sexo                                   String sqltype=varchar(1)
+      fechaNacimiento                        Day Maybe
+      dni                                    Text Maybe sqltype=varchar(10)
+      elegido                                String sqltype=varchar(1)
+      UniqueCandidatos tipoEleccion ano mes vuelta codigoCandidatura numeroOrdenCandidato
+      deriving Show
+
     DatosComunesMunicipios      -- 05xxaamm.DAT
       tipoEleccion                           Int
       ano                                    Int
@@ -122,7 +141,7 @@ share
       codigoComunidad                        Int
       codigoProvincia                        Int
       codigoMunicipio                        Int
-      numDistrito                            Int
+      distritoMunicipal                      Int
       nombreMunicipioODistrito               Text sqltype=varchar(100)
       codigoDistritoElectoral                Int
       codigoPartidoJudicial                  Int
@@ -143,7 +162,7 @@ share
       votosAfirmativos                       Int
       votosNegativos                         Int
       datosOficiales                         String sqltype=varchar(1)
-      UniqueDatosComunesMunicipios tipoEleccion ano mes vueltaOPregunta codigoComunidad codigoProvincia codigoMunicipio numDistrito
+      UniqueDatosComunesMunicipios tipoEleccion ano mes vueltaOPregunta codigoComunidad codigoProvincia codigoMunicipio distritoMunicipal
       deriving Show
   |]
 
@@ -272,7 +291,7 @@ getProcesoElectoral =
   <*> (snd <$> getVuelta)
   <*> getTipoAmbito
   <*> (snd <$> getAmbito)
-  <*> getFecha
+  <*> (fromJust <$> getFecha)
   <*> getHora
   <*> getHora
   <*> getHora
@@ -291,6 +310,25 @@ getCandidatura =
   <*> (snd <$> getCodigoCandidatura)
   <*> (snd <$> getCodigoCandidatura)
 
+getCandidato :: Get Candidatos
+getCandidato =
+  Candidatos
+  <$> (snd <$> getTipoEleccion)
+  <*> (snd <$> getAno)
+  <*> (snd <$> getMes)
+  <*> (snd <$> getVuelta)
+  <*> (snd <$> getCodigoProvincia)
+  <*> (snd <$> getCodigoDistritoElectoral)
+  <*> (snd <$> getCodigoMunicipio)
+  <*> (snd <$> getCodigoCandidatura)
+  <*> (snd <$> getNumeroOrdenCandidato)
+  <*> getTipoCandidato
+  <*> getNombreCandidato
+  <*> getSexo
+  <*> getFecha
+  <*> getDni
+  <*> getElegido
+
 getDatosComunesMunicipio :: Get DatosComunesMunicipios
 getDatosComunesMunicipio =
   DatosComunesMunicipios
@@ -301,7 +339,7 @@ getDatosComunesMunicipio =
   <*> (snd <$> getCodigoComunidad)
   <*> (snd <$> getCodigoProvincia)
   <*> (snd <$> getCodigoMunicipio)
-  <*> (snd <$> getNumDistrito)
+  <*> (snd <$> getDistritoMunicipal)
   <*> getNombreMunicipioODistrito
   <*> (snd <$> getCodigoDistritoElectoral)
   <*> (snd <$> getCodigoPartidoJudicial)
@@ -338,20 +376,21 @@ getMes = getInt 2
 getVuelta :: Get (Text, Int)
 getVuelta = getInt 1
 
--- | WARNING: partial function, it fails if fewer than 1 byte is left in the
--- input.
 getTipoAmbito :: Get String
 getTipoAmbito = B8.unpack <$> getByteString 1
 
 getAmbito :: Get (Text, Int)
 getAmbito = getInt 2
 
-getFecha :: Get Day
+getFecha :: Get (Maybe Day)
 getFecha =
-  (\d m y -> fromGregorian y m d)
+  mkFecha
   <$> (snd <$> getInt 2)
   <*> (snd <$> getInt 2)
   <*> (fromIntegral . snd <$> getInt 4)
+  where
+    mkFecha 0 0 _ = Nothing
+    mkFecha d m y = Just $ fromGregorian y m d
 
 getHora :: Get TimeOfDay
 getHora =
@@ -382,8 +421,8 @@ getCodigoProvincia = getInt 2
 getCodigoMunicipio :: Get (Text, Int)
 getCodigoMunicipio = getInt 3
 
-getNumDistrito :: Get (Text, Int)
-getNumDistrito = getInt 2
+getDistritoMunicipal :: Get (Text, Int)
+getDistritoMunicipal = getInt 2
 
 getNombreMunicipioODistrito :: Get Text
 getNombreMunicipioODistrito = getText 100
@@ -442,20 +481,58 @@ getVotosAfirmativos = getInt 8
 getVotosNegativos :: Get (Text, Int)
 getVotosNegativos = getInt 8
 
--- | WARNING: partial function, it fails if fewer than 1 byte is left in the
--- input.
 getDatosOficiales :: Get String
 getDatosOficiales = B8.unpack <$> getByteString 1
 
--- | Given a number of bytes to read, gets and @Int@ (into the Get monad) both
--- as a number and as Text. WARNING: partial function, uses @read@, so it fails
+getNumeroOrdenCandidato :: Get (Text, Int)
+getNumeroOrdenCandidato = getInt 3
+
+getTipoCandidato :: Get String
+getTipoCandidato = B8.unpack <$> getByteString 1
+
+-- | Try to read person names as one single 'Text', independently of which of
+-- the following cases we are faced on:
+--
+-- 1. Name and two surnames are split up into three pieces of 25 bytes length.
+-- 2. All the 75 bytes are a single piece of data with the name and two
+-- surnames.
+--
+-- There is one situation in which the following algorithm does the wrong thing:
+-- we are in case (1) and some of the two first pieces of text are using all the
+-- 25 bytes. Then, we will concat the pieces without the necessary white-space.
+getNombreCandidato :: Get Text
+getNombreCandidato =
+  (T.unwords . T.words . T.pack . B8.unpack) -- Remove redundant white-space
+  <$> ( B8.append
+        <$> getByteString 25
+        <*> (B8.append <$> getByteString 25 <*> getByteString 25)
+      )
+
+getNombre :: Get Text
+getNombre = getText 25
+
+getSexo :: Get String
+getSexo = B8.unpack <$> getByteString 1
+
+getDni :: Get (Maybe Text)
+getDni = do
+  t <- getText 10
+  if T.all (== ' ') t
+    then return Nothing
+    else return $ Just t
+
+getElegido :: Get String
+getElegido = B8.unpack <$> getByteString 1
+
+-- | Given a number of bytes to read, gets and 'Int' (into the Get monad) both
+-- as a number and as Text. WARNING: partial function, uses 'read', so it fails
 -- if some of the obtained bytes is not a decimal digit, or fewer than @n@ bytes
 -- are left in the input.
 getInt :: Int -> Get (Text, Int)
 getInt n = (T.pack &&& read) . B8.unpack <$> getByteString n
 
 -- | Given a number of bytes to read, gets (into the Get monad) the end-stripped
--- @Text@ represented by those bytes. WARNING: partial function, it fails if
+-- 'Text' represented by those bytes. WARNING: partial function, it fails if
 -- fewer than @n@ bytes are left in the input.
 getText :: Int -> Get Text
 getText n = T.stripEnd . T.pack . B8.unpack <$> getByteString n
@@ -537,6 +614,7 @@ main = execParser options' >>= \(Options b d u p g) ->
           forM_ datFiles $ \f -> case head2 f of
             "02" -> readFileIntoDb f getProcesoElectoral
             "03" -> readFileIntoDb f getCandidatura
+            "04" -> readFileIntoDb f getCandidato
             "05" -> readFileIntoDb f getDatosComunesMunicipio
             _    -> return ()
           let tables = ["candidaturas"]
