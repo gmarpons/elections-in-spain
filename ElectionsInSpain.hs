@@ -606,21 +606,18 @@ main = execParser options' >>= \(Options b d u p g) ->
   runNoLoggingT $ withPostgresqlPool (pgConnOpts d u p) 10 $ \pool ->
     liftIO $ flip runSqlPersistMPool pool $ do
       haveDir <- liftIO $ F.isDirectory b
-      if haveDir then do
+      if haveDir
+        then do
         runMigration migrateAll
         insertStaticDataIntoDb
         datFiles <- liftIO $ F.listDirectory b >>= filterM isDatFile
-        if not (null datFiles) then do
-          forM_ datFiles $ \f -> case head2 f of
-            "02" -> readFileIntoDb f getProcesoElectoral
-            "03" -> readFileIntoDb f getCandidatura
-            "04" -> readFileIntoDb f getCandidato
-            "05" -> readFileIntoDb f getDatosComunesMunicipio
-            _    -> return ()
-          let tables = ["candidaturas"]
-          forM_ [(u_, t) | u_ <- g, t <- tables] $ \(user_, table) ->
-            handleAll (expWhen ("granting access privileges for user " ++ user_)) $
-            grantAccess table user_
+        if not (null datFiles)
+          then forM_ datFiles $ \f -> case head2 f of
+          "02" -> readFileIntoDb f g getProcesoElectoral
+          "03" -> readFileIntoDb f g getCandidatura
+          "04" -> readFileIntoDb f g getCandidato
+          "05" -> readFileIntoDb f g getDatosComunesMunicipio
+          _    -> return ()
           else liftIO $ putStrLn $ "Failed: no .DAT files found in " ++ show b
         else liftIO $ putStrLn $ "Failed: " ++ show b ++ " is not a directory"
   where
@@ -644,17 +641,22 @@ sinkToDb :: ( MonadResource m
             Sink a (ReaderT SqlBackend m) ()
 sinkToDb = awaitForever $ \c -> lift $ upsert c []
 
+-- | Also grants access to the updated table for users in the second argument.
 readFileIntoDb :: forall a m.
-                  ( MonadResource m, MonadIO m, MonadCatch m
+                  ( MonadResource m, MonadIO m, MonadCatch m, MonadLogger m
+                  , MonadBaseControl IO m
                   , PersistEntity a, PersistEntityBackend a ~ SqlBackend)
                   =>
-                  F.FilePath -> Get a -> ReaderT SqlBackend m ()
-readFileIntoDb file fGet =
+                  F.FilePath -> [String] -> Get a -> ReaderT SqlBackend m ()
+readFileIntoDb file users fGet =
   handleAll (expWhen "upserting rows") $ do
     sourceFile file $= conduitGet (skipToNextLineAfter fGet) $$ sinkToDb
     -- Works even with empty list!!
     let name = T.filter (/='"') $ tableName (head ([] :: [a]))
     liftIO $ putStr "Upserted to " >> print name
+    forM_ users $ \user_ ->
+      handleAll (expWhen ("granting access privileges for user " ++ user_)) $
+      grantAccess name user_
 
 expWhen :: (MonadIO m, MonadCatch m) => String -> SomeException -> m ()
 expWhen msg e = do
