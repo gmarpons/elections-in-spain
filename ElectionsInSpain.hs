@@ -245,6 +245,22 @@ share
       datosOficiales                         String sqltype=varchar(1)
       UniqueDatosMesas tipoEleccion ano mes vueltaOPregunta codigoProvincia codigoMunicipio distritoMunicipal codigoSeccion codigoMesa
       deriving Show
+
+    VotosMesas                  -- 10xxaamm.DAT
+      tipoEleccion                           Int
+      ano                                    Int
+      mes                                    Int
+      vuelta                                 Int
+      codigoComunidad                        Int
+      codigoProvincia                        Int
+      codigoMunicipio                        Int
+      distritoMunicipal                      Int
+      codigoSeccion                          String sqltype=varchar(4)
+      codigoMesa                             String sqltype=varchar(1)
+      codigoCandidatura                      Int
+      votos                                  Int
+      UniqueVotosMesas tipoEleccion ano mes vuelta codigoProvincia codigoMunicipio distritoMunicipal codigoSeccion codigoMesa codigoCandidatura
+      deriving Show
   |]
 
 
@@ -453,7 +469,7 @@ getVotosMunicipio =
   <*> (snd <$> getCodigoMunicipio)
   <*> (snd <$> getDistritoMunicipal)
   <*> (snd <$> getCodigoCandidatura)
-  <*> (snd <$> getVotos)
+  <*> (snd <$> getVotos 8)
   <*> (snd <$> getNumeroCandidatos 3)
 
 getDatosAmbitoSuperior :: Get DatosAmbitoSuperior
@@ -494,7 +510,7 @@ getVotosAmbitoSuperior =
   <*> (snd <$> getCodigoProvincia)
   <*> (snd <$> getCodigoDistritoElectoral)
   <*> (snd <$> getCodigoCandidatura)
-  <*> (snd <$> getVotos)
+  <*> (snd <$> getVotos 8)
   <*> (snd <$> getNumeroCandidatos 5)
 
 getDatosMesa :: Get DatosMesas
@@ -522,6 +538,22 @@ getDatosMesa =
   <*> (snd <$> getVotosAfirmativos 7)
   <*> (snd <$> getVotosNegativos 7)
   <*> getDatosOficiales
+
+getVotosMesa :: Get VotosMesas
+getVotosMesa =
+  VotosMesas
+  <$> (snd <$> getTipoEleccion)
+  <*> (snd <$> getAno)
+  <*> (snd <$> getMes)
+  <*> (snd <$> getVuelta)
+  <*> (snd <$> getCodigoComunidad)
+  <*> (snd <$> getCodigoProvincia)
+  <*> (snd <$> getCodigoMunicipio)
+  <*> (snd <$> getDistritoMunicipal)
+  <*> getCodigoSeccion
+  <*> getCodigoMesa
+  <*> (snd <$> getCodigoCandidatura)
+  <*> (snd <$> getVotos 7)
 
 skipToNextLineAfter :: Get a -> Get a
 skipToNextLineAfter item = item <* skip 1
@@ -686,8 +718,8 @@ getDni = do
 getElegido :: Get String
 getElegido = B8.unpack <$> getByteString 1
 
-getVotos :: Get (Text, Int)
-getVotos = getInt 8
+getVotos :: Int -> Get (Text, Int)
+getVotos = getInt
 
 getNumeroCandidatos :: Int -> Get (Text, Int)
 getNumeroCandidatos = getInt
@@ -798,6 +830,7 @@ main = execParser options' >>= \(Options b d u p g) ->
           "07" -> readFileIntoDb f g getDatosAmbitoSuperior
           "08" -> readFileIntoDb f g getVotosAmbitoSuperior
           "09" -> readFileIntoDb f g getDatosMesa
+          "10" -> readFileIntoDb f g getVotosMesa
           _    -> return ()
           else liftIO $ putStrLn $ "Failed: no .DAT files found in " ++ show b
         else liftIO $ putStrLn $ "Failed: " ++ show b ++ " is not a directory"
