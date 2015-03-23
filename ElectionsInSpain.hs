@@ -178,6 +178,33 @@ share
       numeroCandidatos                       Int
       UniqueVotosMunicipios tipoEleccion ano mes vuelta codigoProvincia codigoMunicipio distritoMunicipal codigoCandidatura
       deriving Show
+
+    DatosComunesAmbitoSuperior  -- 07xxaamm.DAT
+      tipoEleccion                           Int
+      ano                                    Int
+      mes                                    Int
+      vueltaOPregunta                        Int
+      codigoComunidad                        Int
+      codigoProvincia                        Int
+      codigoDistritoElectoral                Int
+      nombreAmbitoTerritorial                Text sqltype=varchar(50)
+      poblacionDerecho                       Int
+      numMesas                               Int
+      censoIne                               Int
+      censoEscrutinio                        Int
+      censoResidentesExtranjeros             Int
+      votantesResidentesExtranejros          Int
+      votantesPrimerAvanceParticipacion      Int
+      votantesSegundoAvanceParticipacion     Int
+      votosEnBlanco                          Int
+      votosNulos                             Int
+      votosACandidaturas                     Int
+      numeroEscanos                          Int
+      votosAfirmativos                       Int
+      votosNegativos                         Int
+      datosOficiales                         String sqltype=varchar(1)
+      UniqueDatosComunesAmbitoSuperior tipoEleccion ano mes vueltaOPregunta codigoComunidad codigoProvincia codigoDistritoElectoral
+      deriving Show
   |]
 
 
@@ -370,7 +397,7 @@ getDatosComunesMunicipio =
   <*> (snd <$> getVotosEnBlanco)
   <*> (snd <$> getVotosNulos)
   <*> (snd <$> getVotosACandidaturas)
-  <*> (snd <$> getNumeroEscanos)
+  <*> (snd <$> getNumeroEscanos3)
   <*> (snd <$> getVotosAfirmativos)
   <*> (snd <$> getVotosNegativos)
   <*> getDatosOficiales
@@ -388,6 +415,33 @@ getVotosMunicipio =
   <*> (snd <$> getCodigoCandidatura)
   <*> (snd <$> getVotos)
   <*> (snd <$> getNumeroCandidatos)
+
+getDatosComunesAmbitoSuperior :: Get DatosComunesAmbitoSuperior
+getDatosComunesAmbitoSuperior =
+  DatosComunesAmbitoSuperior
+  <$> (snd <$> getTipoEleccion)
+  <*> (snd <$> getAno)
+  <*> (snd <$> getMes)
+  <*> (snd <$> getVueltaOPregunta)
+  <*> (snd <$> getCodigoComunidad)
+  <*> (snd <$> getCodigoProvincia)
+  <*> (snd <$> getCodigoDistritoElectoral)
+  <*> getNombreAmbitoTerritorial
+  <*> (snd <$> getPoblacionDerecho)
+  <*> (snd <$> getNumeroMesas)
+  <*> (snd <$> getCensoINE)
+  <*> (snd <$> getCensoEscrutinio)
+  <*> (snd <$> getCensoResidentesExtranjeros)
+  <*> (snd <$> getVotantesResidentesExtranjeros)
+  <*> (snd <$> getVotantesPrimerAvanceParticipacion)
+  <*> (snd <$> getVotantesSegundoAvancePArticipacion)
+  <*> (snd <$> getVotosEnBlanco)
+  <*> (snd <$> getVotosNulos)
+  <*> (snd <$> getVotosACandidaturas)
+  <*> (snd <$> getNumeroEscanos6)
+  <*> (snd <$> getVotosAfirmativos)
+  <*> (snd <$> getVotosNegativos)
+  <*> getDatosOficiales
 
 skipToNextLineAfter :: Get a -> Get a
 skipToNextLineAfter item = item <* skip 1
@@ -500,8 +554,11 @@ getVotosNulos = getInt 8
 getVotosACandidaturas :: Get (Text, Int)
 getVotosACandidaturas = getInt 8
 
-getNumeroEscanos :: Get (Text, Int)
-getNumeroEscanos = getInt 3
+getNumeroEscanos3 :: Get (Text, Int)
+getNumeroEscanos3 = getInt 3
+
+getNumeroEscanos6 :: Get (Text, Int)
+getNumeroEscanos6 = getInt 6
 
 getVotosAfirmativos :: Get (Text, Int)
 getVotosAfirmativos = getInt 8
@@ -557,6 +614,9 @@ getVotos = getInt 8
 
 getNumeroCandidatos :: Get (Text, Int)
 getNumeroCandidatos = getInt 3
+
+getNombreAmbitoTerritorial :: Get Text
+getNombreAmbitoTerritorial = getText 50
 
 -- | Given a number of bytes to read, gets and 'Int' (into the Get monad) both
 -- as a number and as Text. WARNING: partial function, uses 'read', so it fails
@@ -647,11 +707,12 @@ main = execParser options' >>= \(Options b d u p g) ->
         datFiles <- liftIO $ F.listDirectory b >>= filterM isDatFile
         if not (null datFiles)
           then forM_ datFiles $ \f -> case head2 f of
-          "02" -> readFileIntoDb f g getProcesoElectoral
-          "03" -> readFileIntoDb f g getCandidatura
-          "04" -> readFileIntoDb f g getCandidato
-          "05" -> readFileIntoDb f g getDatosComunesMunicipio
-          "06" -> readFileIntoDb f g getVotosMunicipio
+          -- "02" -> readFileIntoDb f g getProcesoElectoral
+          -- "03" -> readFileIntoDb f g getCandidatura
+          -- "04" -> readFileIntoDb f g getCandidato
+          -- "05" -> readFileIntoDb f g getDatosComunesMunicipio
+          -- "06" -> readFileIntoDb f g getVotosMunicipio
+          "07" -> readFileIntoDb f g getDatosComunesAmbitoSuperior
           _    -> return ()
           else liftIO $ putStrLn $ "Failed: no .DAT files found in " ++ show b
         else liftIO $ putStrLn $ "Failed: " ++ show b ++ " is not a directory"
