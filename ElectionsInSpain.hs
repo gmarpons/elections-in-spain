@@ -14,7 +14,6 @@
 module Main where
 
 import           Control.Applicative
-import           Control.Arrow
 import           Control.Monad
 import           Control.Monad.Catch
 import           Control.Monad.IO.Class            (MonadIO, liftIO)
@@ -148,7 +147,7 @@ share
       codigoDiputacionProvincial             Int
       codigoComarca                          Int
       poblacionDerecho                       Int
-      numMesas                               Int
+      numeroMesas                            Int
       censoIne                               Int
       censoEscrutinio                        Int
       censoResidentesExtranjeros             Int
@@ -189,7 +188,7 @@ share
       codigoDistritoElectoral                Int
       nombreAmbitoTerritorial                Text sqltype=varchar(50)
       poblacionDerecho                       Int
-      numMesas                               Int
+      numeroMesas                            Int
       censoIne                               Int
       censoEscrutinio                        Int
       censoResidentesExtranjeros             Int
@@ -260,6 +259,53 @@ share
       codigoCandidatura                      Int
       votos                                  Int
       UniqueVotosMesas tipoEleccion ano mes vuelta codigoProvincia codigoMunicipio distritoMunicipal codigoSeccion codigoMesa codigoCandidatura
+      deriving Show
+
+    DatosMunicipios250          -- 1104aamm.DAT
+      tipoMunicipio                          String sqltype=varchar(2)
+      ano                                    Int
+      mes                                    Int
+      vuelta                                 Int
+      codigoComunidad                        Int
+      codigoProvincia                        Int
+      codigoMunicipio                        Int
+      nombreMunicipio                        Text sqltype=varchar(100)
+      codigoPartidoJudicial                  Int
+      codigoDiputacionProvincial             Int
+      codigoComarca                          Int
+      poblacionDerecho                       Int
+      numeroMesas                            Int
+      censoIne                               Int
+      censoEscrutinio                        Int
+      censoResidentesExtranjeros             Int
+      votantesResidentesExtranejros          Int
+      votantesPrimerAvanceParticipacion      Int
+      votantesSegundoAvanceParticipacion     Int
+      votosEnBlanco                          Int
+      votosNulos                             Int
+      votosACandidaturas                     Int
+      numeroEscanos                          Int
+      datosOficiales                         String sqltype=varchar(1)
+      UniqueDatosMunicipios250 ano mes vuelta codigoProvincia codigoMunicipio
+      deriving Show
+
+    VotosMunicipios250          -- 1204aamm.DAT
+      tipoMunicipio                          String sqltype=varchar(2)
+      ano                                    Int
+      mes                                    Int
+      vuelta                                 Int
+      codigoProvincia                        Int
+      codigoMunicipio                        Int
+      codigoCandidatura                      Int
+      votosCandidatura                       Int
+      numeroCandidatos                       Int
+      nombreCandidato                        Text sqltype=varchar(75)
+      sexo                                   String sqltype=varchar(1)
+      fechaNacimiento                        Day Maybe
+      dni                                    Text Maybe sqltype=varchar(10)
+      votosCandidato                         Int
+      elegido                                String sqltype=varchar(1)
+      UniqueVotosMunicipios250 ano mes vuelta codigoProvincia codigoMunicipio codigoCandidatura nombreCandidato
       deriving Show
   |]
 
@@ -388,7 +434,7 @@ getProcesoElectoral =
   <*> (snd <$> getVuelta)
   <*> getTipoAmbito
   <*> (snd <$> getAmbito)
-  <*> (fromJust <$> getFecha)
+  <*> getFecha
   <*> getHora
   <*> getHora
   <*> getHora
@@ -422,8 +468,8 @@ getCandidato =
   <*> getTipoCandidato
   <*> getNombreCandidato
   <*> getSexo
-  <*> getFecha
-  <*> getDni
+  <*> ((Just <$> getFecha) <|> (Nothing <$ skip 8))
+  <*> getMaybeDni
   <*> getElegido
 
 getDatosMunicipio :: Get DatosMunicipios
@@ -442,8 +488,8 @@ getDatosMunicipio =
   <*> (snd <$> getCodigoPartidoJudicial)
   <*> (snd <$> getCodigoDiputacionProvincial)
   <*> (snd <$> getCodigoComarca)
-  <*> (snd <$> getPoblacionDerecho)
-  <*> (snd <$> getNumeroMesas)
+  <*> (snd <$> getPoblacionDerecho 8)
+  <*> (snd <$> getNumeroMesas 5)
   <*> (snd <$> getCensoINE 8)
   <*> (snd <$> getCensoEscrutinio 8)
   <*> (snd <$> getCensoResidentesExtranjeros 8)
@@ -483,8 +529,8 @@ getDatosAmbitoSuperior =
   <*> (snd <$> getCodigoProvincia)
   <*> (snd <$> getCodigoDistritoElectoral)
   <*> getNombreAmbitoTerritorial
-  <*> (snd <$> getPoblacionDerecho)
-  <*> (snd <$> getNumeroMesas)
+  <*> (snd <$> getPoblacionDerecho 8)
+  <*> (snd <$> getNumeroMesas 5)
   <*> (snd <$> getCensoINE 8)
   <*> (snd <$> getCensoEscrutinio 8)
   <*> (snd <$> getCensoResidentesExtranjeros 8)
@@ -555,8 +601,75 @@ getVotosMesa =
   <*> (snd <$> getCodigoCandidatura)
   <*> (snd <$> getVotos 7)
 
+getDatosMunicipio250 :: Get DatosMunicipios250
+getDatosMunicipio250 =
+  DatosMunicipios250
+  <$> getTipoMunicipio
+  <*> (snd <$> getAno)
+  <*> (snd <$> getMes)
+  <*> (snd <$> getVueltaOPregunta)
+  <*> (snd <$> getCodigoComunidad)
+  <*> (snd <$> getCodigoProvincia)
+  <*> (snd <$> getCodigoMunicipio)
+  <*> getNombreMunicipio
+  <*> (snd <$> getCodigoPartidoJudicial)
+  <*> (snd <$> getCodigoDiputacionProvincial)
+  <*> (snd <$> getCodigoComarca)
+  <*> (snd <$> getPoblacionDerecho 3)
+  <*> (snd <$> getNumeroMesas 2)
+  <*> (snd <$> getCensoINE 3)
+  <*> (snd <$> getCensoEscrutinio 3)
+  <*> (snd <$> getCensoResidentesExtranjeros 3)
+  <*> (snd <$> getVotantesResidentesExtranjeros 3)
+  <*> (snd <$> getVotantesPrimerAvanceParticipacion 3)
+  <*> (snd <$> getVotantesSegundoAvancePArticipacion 3)
+  <*> (snd <$> getVotosEnBlanco 3)
+  <*> (snd <$> getVotosNulos 3)
+  <*> (snd <$> getVotosACandidaturas 3)
+  <*> (snd <$> getNumeroEscanos 2)
+  <*> getDatosOficiales
+
+getVotosMunicipio250 :: Get VotosMunicipios250
+getVotosMunicipio250 =
+  mk VotosMunicipios250
+  <$> getTipoMunicipio
+  <*> (snd <$> getAno)
+  <*> (snd <$> getMes)
+  <*> (snd <$> getVuelta)
+  <*> (snd <$> getCodigoProvincia)
+  <*> (snd <$> getCodigoMunicipio)
+  <*> (snd <$> getCodigoCandidatura)
+  <*> (snd <$> getVotos 3)      -- votosCandidatura
+  <*> (snd <$> getNumeroCandidatos 2)
+  <*> getNombreCandidato
+  <*> getSexo
+  <*> ((Just <$> getFecha) <|> (Nothing <$ skip 8))
+  <*> (rightFields <|> wrongFields)
+  where
+    mk ctor t a m v p c c' v' n n' s f (d, v'', e) =
+      ctor t a m v p c c' v' n n' s f d v'' e
+    rightFields =
+      (,,)
+      <$> getMaybeDni
+      <*> (snd <$> getVotos 3)  -- votosCandidato
+      <*> getElegido
+    -- Some files have a missing byte in dni and an extra space at line end
+    wrongFields =
+      (,,)
+      <$> (Nothing <$ skip 9)
+      <*> (snd <$> getVotos 3)  -- votosCandidato
+      <*> getElegido
+      <*  skip 1
+
 skipToNextLineAfter :: Get a -> Get a
 skipToNextLineAfter item = item <* skip 1
+
+getSpace :: Get Char
+getSpace = do
+  bs <- getByteString 1
+  if B8.null (B8.takeWhile (== ' ') bs)
+    then empty
+    else return ' '
 
 getTipoEleccion :: Get (Text, Int)
 getTipoEleccion = getInt 2
@@ -576,16 +689,14 @@ getTipoAmbito = B8.unpack <$> getByteString 1
 getAmbito :: Get (Text, Int)
 getAmbito = getInt 2
 
-getFecha :: Get (Maybe Day)
-getFecha =
-  mkFecha
-  <$> (snd <$> getInt 2)
-  <*> (snd <$> getInt 2)
-  <*> (fromIntegral . snd <$> getInt 4)
-  where
-    mkFecha 0 0 _ = Nothing
-    mkFecha d m y = Just $ fromGregorian y m d
+getFecha :: Get Day
+getFecha = do
+  d <- snd <$> getInt 2
+  m <- snd <$> getInt 2
+  y <- fromIntegral . snd <$> getInt 4
+  if d == 0 || m == 0 then empty else return $ fromGregorian y m d
 
+-- | Error if reads "hh:mm" where @hh > 23@ or @mm > 59@.
 getHora :: Get TimeOfDay
 getHora =
   TimeOfDay
@@ -618,8 +729,9 @@ getCodigoMunicipio = getInt 3
 getDistritoMunicipal :: Get (Text, Int)
 getDistritoMunicipal = getInt 2
 
-getNombreMunicipioODistrito :: Get Text
+getNombreMunicipioODistrito, getNombreMunicipio :: Get Text
 getNombreMunicipioODistrito = getText 100
+getNombreMunicipio = getText 100
 
 getCodigoDistritoElectoral :: Get (Text, Int)
 getCodigoDistritoElectoral = getInt 1
@@ -633,11 +745,11 @@ getCodigoDiputacionProvincial = getInt 3
 getCodigoComarca :: Get (Text, Int)
 getCodigoComarca = getInt 3
 
-getPoblacionDerecho :: Get (Text, Int)
-getPoblacionDerecho = getInt 8
+getPoblacionDerecho :: Int -> Get (Text, Int)
+getPoblacionDerecho = getInt
 
-getNumeroMesas :: Get (Text, Int)
-getNumeroMesas = getInt 5
+getNumeroMesas :: Int -> Get (Text, Int)
+getNumeroMesas = getInt
 
 getCensoINE :: Int -> Get (Text, Int)
 getCensoINE = getInt
@@ -708,8 +820,8 @@ getNombre = getText 25
 getSexo :: Get String
 getSexo = B8.unpack <$> getByteString 1
 
-getDni :: Get (Maybe Text)
-getDni = do
+getMaybeDni :: Get (Maybe Text)
+getMaybeDni = do
   t <- getText 10
   if T.all (== ' ') t
     then return Nothing
@@ -733,16 +845,22 @@ getCodigoSeccion = B8.unpack <$> getByteString 4
 getCodigoMesa :: Get String
 getCodigoMesa = B8.unpack <$> getByteString 1
 
+getTipoMunicipio :: Get String
+getTipoMunicipio = B8.unpack <$> getByteString 2
+
 -- | Given a number of bytes to read, gets and 'Int' (into the Get monad) both
--- as a number and as Text. WARNING: partial function, uses 'read', so it fails
--- if some of the obtained bytes is not a decimal digit, or fewer than @n@ bytes
--- are left in the input.
+-- as a number and as Text. It fails if some of the read bytes is not a decimal
+-- digit or fewer than @n@ bytes are left in the input.
 getInt :: Int -> Get (Text, Int)
-getInt n = (T.pack &&& read) . B8.unpack <$> getByteString n
+getInt n = do
+  bs <- getByteString n
+  case B8.readInt bs of
+    Just (i, bs') | B8.null bs' -> return (T.pack (B8.unpack bs), i)
+    _                           -> empty
 
 -- | Given a number of bytes to read, gets (into the Get monad) the end-stripped
--- 'Text' represented by those bytes. WARNING: partial function, it fails if
--- fewer than @n@ bytes are left in the input.
+-- 'Text' represented by those bytes. It fails if fewer than @n@ bytes are left
+-- in the input.
 getText :: Int -> Get Text
 getText n = T.stripEnd . T.pack . B8.unpack <$> getByteString n
 
@@ -831,6 +949,8 @@ main = execParser options' >>= \(Options b d u p g) ->
           "08" -> readFileIntoDb f g getVotosAmbitoSuperior
           "09" -> readFileIntoDb f g getDatosMesa
           "10" -> readFileIntoDb f g getVotosMesa
+          "11" -> readFileIntoDb f g getDatosMunicipio250
+          "12" -> readFileIntoDb f g getVotosMunicipio250
           _    -> return ()
           else liftIO $ putStrLn $ "Failed: no .DAT files found in " ++ show b
         else liftIO $ putStrLn $ "Failed: " ++ show b ++ " is not a directory"
@@ -864,6 +984,7 @@ readFileIntoDb :: forall a m.
                   F.FilePath -> [String] -> Get a -> ReaderT SqlBackend m ()
 readFileIntoDb file users fGet =
   handleAll (expWhen "upserting rows") $ do
+    liftIO $ putStr "Upserting from " >> print file
     sourceFile file $= conduitGet (skipToNextLineAfter fGet) $$ sinkToDb
     -- Works even with empty list!!
     let name = T.filter (/='"') $ tableName (head ([] :: [a]))
