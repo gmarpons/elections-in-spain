@@ -454,6 +454,7 @@ getProcesoElectoral =
   <*> getHora
   <*> getHora
   <*> getHora
+  <*  getSpaces
 
 getCandidatura :: Get Candidaturas
 getCandidatura =
@@ -467,6 +468,7 @@ getCandidatura =
   <*> (snd <$> getCodigoCandidatura)
   <*> (snd <$> getCodigoCandidatura)
   <*> (snd <$> getCodigoCandidatura)
+  <*  getSpaces
 
 getCandidato :: Get Candidatos
 getCandidato =
@@ -486,6 +488,7 @@ getCandidato =
   <*> ((Just <$> getFecha) <|> (Nothing <$ skip 8))
   <*> getMaybeDni
   <*> getElegido
+  <*  getSpaces
 
 getDatosMunicipio :: Get DatosMunicipios
 getDatosMunicipio =
@@ -518,6 +521,7 @@ getDatosMunicipio =
   <*> (snd <$> getVotosAfirmativos 8)
   <*> (snd <$> getVotosNegativos 8)
   <*> getDatosOficiales
+  <*  getSpaces
 
 getVotosMunicipio :: Get VotosMunicipios
 getVotosMunicipio =
@@ -532,6 +536,7 @@ getVotosMunicipio =
   <*> (snd <$> getCodigoCandidatura)
   <*> (snd <$> getVotos 8)
   <*> (snd <$> getNumeroCandidatos 3)
+  <*  getSpaces
 
 getDatosAmbitoSuperior :: Get DatosAmbitoSuperior
 getDatosAmbitoSuperior =
@@ -559,6 +564,7 @@ getDatosAmbitoSuperior =
   <*> (snd <$> getVotosAfirmativos 8)
   <*> (snd <$> getVotosNegativos 8)
   <*> getDatosOficiales
+  <*  getSpaces
 
 getVotosAmbitoSuperior :: Get VotosAmbitoSuperior
 getVotosAmbitoSuperior =
@@ -573,6 +579,7 @@ getVotosAmbitoSuperior =
   <*> (snd <$> getCodigoCandidatura)
   <*> (snd <$> getVotos 8)
   <*> (snd <$> getNumeroCandidatos 5)
+  <*  getSpaces
 
 getDatosMesa :: Get DatosMesas
 getDatosMesa =
@@ -599,6 +606,7 @@ getDatosMesa =
   <*> (snd <$> getVotosAfirmativos 7)
   <*> (snd <$> getVotosNegativos 7)
   <*> getDatosOficiales
+  <*  getSpaces
 
 getVotosMesa :: Get VotosMesas
 getVotosMesa =
@@ -615,6 +623,7 @@ getVotosMesa =
   <*> getCodigoMesa
   <*> (snd <$> getCodigoCandidatura)
   <*> (snd <$> getVotos 7)
+  <*  getSpaces
 
 getDatosMunicipio250 :: Get DatosMunicipios250
 getDatosMunicipio250 =
@@ -643,6 +652,7 @@ getDatosMunicipio250 =
   <*> (snd <$> getVotosACandidaturas 3)
   <*> (snd <$> getNumeroEscanos 2)
   <*> getDatosOficiales
+  <*  getSpaces
 
 getVotosMunicipio250 :: Get VotosMunicipios250
 getVotosMunicipio250 =
@@ -660,6 +670,7 @@ getVotosMunicipio250 =
   <*> getSexo
   <*> ((Just <$> getFecha) <|> (Nothing <$ skip 8))
   <*> (rightFields <|> wrongFields)
+  <*  getSpaces
   where
     mk ctor t a m v p c c' v' n n' s f (d, v'', e) =
       ctor t a m v p c c' v' n n' s f d v'' e
@@ -676,8 +687,8 @@ getVotosMunicipio250 =
       <*> getElegido
       <*  skip 1
 
-skipToNextLineAfter :: Get a -> Get a
-skipToNextLineAfter item = item <* skip 1
+getSpaces :: Get String
+getSpaces = many getSpace
 
 getSpace :: Get Char
 getSpace = do
@@ -1000,13 +1011,17 @@ readFileIntoDb :: forall a m.
 readFileIntoDb file users fGet =
   handleAll (expWhen "upserting rows") $ do
     liftIO $ putStr "Upserting from " >> print file
-    sourceFile file $= conduitGet (skipToNextLineAfter fGet) $$ sinkToDb
+    sourceFile file $= filterWhitespace =$= conduitGet fGet $$ sinkToDb
     -- Works even with empty list!!
     let name = T.filter (/='"') $ tableName (head ([] :: [a]))
     liftIO $ putStr "Upserted to " >> print name
     forM_ users $ \user_ ->
       handleAll (expWhen ("granting access privileges for user " ++ user_)) $
       grantAccess name user_
+  where
+    -- This filtering is only necessary because some files don't follow specs in
+    -- 'doc' dir.
+    filterWhitespace = filterE (/= 10)
 
 expWhen :: (MonadIO m, MonadCatch m) => String -> SomeException -> m ()
 expWhen msg e = do
