@@ -97,10 +97,6 @@ share
       Primary codigoTipoProcesoElectoral codigoProvincia codigoDistritoElectoral
       deriving Show
 
-    -- In the following tables use a multi-valued unique instead of a primary
-    -- key because PKEY + repsert fails (probably a bug), and upsert is easier
-    -- to use (no need of constructing a Key).
-
     ProcesosElectorales         -- 02xxaamm.DAT
       tipoEleccion                           Int
       ano                                    Int
@@ -113,7 +109,7 @@ share
       horaCierre                             TimeOfDay
       horaPrimerAvanceParticipacion          TimeOfDay
       horaSegundoAvanceParticipacion         TimeOfDay
-      UniqueProcesosElectorales tipoEleccion ano mes vuelta tipoAmbito ambito
+      Primary tipoEleccion ano mes vuelta tipoAmbito ambito
       deriving Show
 
     Candidaturas                -- 03xxaamm.DAT
@@ -126,7 +122,7 @@ share
       codigoCandidaturaProvincial            Int
       codigoCandidaturaAutonomico            Int
       codigoCandidaturaNacional              Int
-      UniqueCandidaturas tipoEleccion ano mes codigoCandidatura
+      Primary tipoEleccion ano mes codigoCandidatura
       deriving Show
 
     Candidatos                  -- 04xxaamm.DAT
@@ -145,7 +141,7 @@ share
       fechaNacimiento                        Day Maybe
       dni                                    Text Maybe sqltype=varchar(10)
       elegido                                String sqltype=varchar(1)
-      UniqueCandidatos tipoEleccion ano mes vuelta codigoCandidatura numeroOrden
+      Primary tipoEleccion ano mes vuelta codigoCandidatura numeroOrden
       deriving Show
 
     DatosMunicipios             -- 05xxaamm.DAT
@@ -177,7 +173,7 @@ share
       votosAfirmativos                       Int
       votosNegativos                         Int
       datosOficiales                         String sqltype=varchar(1)
-      UniqueDatosMunicipios tipoEleccion ano mes vueltaOPregunta codigoProvincia codigoMunicipio distritoMunicipal
+      Primary tipoEleccion ano mes vueltaOPregunta codigoProvincia codigoMunicipio distritoMunicipal
       deriving Show
 
     VotosMunicipios             -- 06xxaamm.DAT
@@ -191,7 +187,7 @@ share
       codigoCandidatura                      Int
       votos                                  Int
       numeroCandidatos                       Int
-      UniqueVotosMunicipios tipoEleccion ano mes vuelta codigoProvincia codigoMunicipio distritoMunicipal codigoCandidatura
+      Primary tipoEleccion ano mes vuelta codigoProvincia codigoMunicipio distritoMunicipal codigoCandidatura
       deriving Show
 
     DatosAmbitoSuperior         -- 07xxaamm.DAT
@@ -218,7 +214,9 @@ share
       votosAfirmativos                       Int
       votosNegativos                         Int
       datosOficiales                         String sqltype=varchar(1)
-      UniqueDatosAmbitoSuperior tipoEleccion ano mes vueltaOPregunta codigoProvincia codigoDistritoElectoral
+      -- codigoProvincia necessary in PKey because totals per Comunidad have
+      -- codigoProvincia = 99.
+      Primary tipoEleccion ano mes vueltaOPregunta codigoComunidad codigoProvincia codigoDistritoElectoral
       deriving Show
 
     VotosAmbitoSuperior         -- 08xxaamm.DAT
@@ -232,7 +230,9 @@ share
       codigoCandidatura                      Int
       votos                                  Int
       numeroCandidatos                       Int
-      UniqueVotosAmbitoSuperior tipoEleccion ano mes vuelta codigoProvincia codigoDistritoElectoral codigoCandidatura
+      -- codigoProvincia necessary in PKey because totals per Comunidad have
+      -- codigoProvincia = 99.
+      Primary tipoEleccion ano mes vuelta codigoComunidad codigoProvincia codigoDistritoElectoral codigoCandidatura
       deriving Show
 
     DatosMesas                  -- 09xxaamm.DAT
@@ -258,7 +258,9 @@ share
       votosAfirmativos                       Int
       votosNegativos                         Int
       datosOficiales                         String sqltype=varchar(1)
-      UniqueDatosMesas tipoEleccion ano mes vueltaOPregunta codigoProvincia codigoMunicipio distritoMunicipal codigoSeccion codigoMesa
+      -- codigoProvincia necessary in PKey because totals per Comunidad have
+      -- codigoProvincia = 99.
+      Primary tipoEleccion ano mes vueltaOPregunta codigoComunidad codigoProvincia codigoMunicipio distritoMunicipal codigoSeccion codigoMesa
       deriving Show
 
     VotosMesas                  -- 10xxaamm.DAT
@@ -274,7 +276,9 @@ share
       codigoMesa                             String sqltype=varchar(1)
       codigoCandidatura                      Int
       votos                                  Int
-      UniqueVotosMesas tipoEleccion ano mes vuelta codigoProvincia codigoMunicipio distritoMunicipal codigoSeccion codigoMesa codigoCandidatura
+      -- codigoProvincia necessary in PKey because totals per Comunidad have
+      -- codigoProvincia = 99.
+      Primary tipoEleccion ano mes vuelta codigoComunidad codigoProvincia codigoMunicipio distritoMunicipal codigoSeccion codigoMesa codigoCandidatura
       deriving Show
 
     DatosMunicipios250          -- 1104aamm.DAT
@@ -302,7 +306,7 @@ share
       votosACandidaturas                     Int
       numeroEscanos                          Int
       datosOficiales                         String sqltype=varchar(1)
-      UniqueDatosMunicipios250 ano mes vuelta codigoProvincia codigoMunicipio
+      Primary ano mes vuelta codigoProvincia codigoMunicipio
       deriving Show
 
     VotosMunicipios250          -- 1204aamm.DAT
@@ -321,7 +325,7 @@ share
       dni                                    Text Maybe sqltype=varchar(10)
       votosCandidato                         Int
       elegido                                String sqltype=varchar(1)
-      UniqueVotosMunicipios250 ano mes vuelta codigoProvincia codigoMunicipio codigoCandidatura nombreCandidato
+      Primary ano mes vuelta codigoProvincia codigoMunicipio codigoCandidatura nombreCandidato
       deriving Show
   |]
 
@@ -333,7 +337,7 @@ insertStaticDataIntoDb :: (MonadResource m, MonadIO m, MonadCatch m)
                           =>
                           ReaderT SqlBackend m ()
 insertStaticDataIntoDb =
-  handleAll (expWhen "upserting rows") $ do
+  handleAll (expWhen "inserting rows") $ do
     -- Reinsert all (after delete) on every execution
     deleteWhere ([] :: [Filter TiposDeFichero])
     mapM_ insert_
@@ -984,13 +988,13 @@ main = execParser options' >>= \(Options b d u p g) -> do
       case head2 f of
         "02" -> readFileIntoDb f g getProcesoElectoral
         "03" -> readFileIntoDb f g getCandidatura
-        "04" -> readFileIntoDb f g getCandidato
+        -- "04" -> readFileIntoDb f g getCandidato
         "05" -> readFileIntoDb f g getDatosMunicipio
         "06" -> readFileIntoDb f g getVotosMunicipio
         "07" -> readFileIntoDb f g getDatosAmbitoSuperior
         "08" -> readFileIntoDb f g getVotosAmbitoSuperior
         "09" -> readFileIntoDb f g getDatosMesa
-        "10" -> readFileIntoDb f g getVotosMesa
+        -- "10" -> readFileIntoDb f g getVotosMesa
         "11" -> readFileIntoDb f g getDatosMunicipio250
         "12" -> readFileIntoDb f g getVotosMunicipio250
         _    -> return ()
@@ -1007,7 +1011,7 @@ sinkToDb :: ( MonadResource m
             , PersistEntity a, PersistEntityBackend a ~ SqlBackend)
             =>
             Sink a (ReaderT SqlBackend m) ()
-sinkToDb = awaitForever $ \c -> lift $ upsert c []
+sinkToDb = awaitForever $ \c -> lift $ insert_ c
 
 -- | Also grants access to the updated table for users in the second argument.
 readFileIntoDb :: forall a m.
@@ -1017,12 +1021,12 @@ readFileIntoDb :: forall a m.
                   =>
                   F.FilePath -> [String] -> Get a -> ReaderT SqlBackend m ()
 readFileIntoDb file users fGet =
-  handleAll (expWhen "upserting rows") $ do
-    liftIO $ putStrLn $ "Upserting from " ++ show file
+  handleAll (expWhen "inserting rows") $ do
+    liftIO $ putStrLn $ "inserting from " ++ show file
     sourceFile file $= filterWhitespace =$= conduitGet fGet $$ sinkToDb
     -- Works even with empty list!!
     let name = T.filter (/='"') $ tableName (head ([] :: [a]))
-    liftIO $ putStrLn $ "Upserted to " ++ show name
+    liftIO $ putStrLn $ "Inserted to " ++ show name
     forM_ users $ \user_ ->
       handleAll (expWhen ("granting access privileges for user " ++ user_)) $
       grantAccess name user_
