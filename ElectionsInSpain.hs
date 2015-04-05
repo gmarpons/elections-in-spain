@@ -29,6 +29,7 @@
 module Main where
 
 import           Control.Applicative
+import           Control.Concurrent.Async.Lifted
 import           Control.Monad
 import           Control.Monad.Catch
 import           Control.Monad.IO.Class            (MonadIO, liftIO)
@@ -42,7 +43,7 @@ import           Data.Binary.Get
 import qualified Data.ByteString.Char8             as B8
 import           Data.Conduit
 import           Data.Conduit.Combinators          hiding (concat, filterM,
-                                                    print, null, mapM_)
+                                                    mapM, mapM_, null, print)
 import           Data.Conduit.Serialization.Binary
 import           Data.Maybe
 import           Data.String
@@ -955,37 +956,44 @@ helpMessage =
 
 -- | Entry point. All SQL commands are run in a single transaction.
 main :: IO ()
-main = execParser options' >>= \(Options b d u p g) ->
-  runNoLoggingT $ withPostgresqlPool (pgConnOpts d u p) 10 $ \pool ->
-    liftIO $ flip runSqlPersistMPool pool $ do
-      haveDir <- liftIO $ F.isDirectory b
-      if haveDir
-        then do
-        runMigration migrateAll
-        insertStaticDataIntoDb
-        datFiles <- liftIO $ F.listDirectory b >>= filterM isDatFile
-        if not (null datFiles)
-          then forM_ datFiles $ \f -> case head2 f of
-          "02" -> readFileIntoDb f g getProcesoElectoral
-          "03" -> readFileIntoDb f g getCandidatura
-          "04" -> readFileIntoDb f g getCandidato
-          "05" -> readFileIntoDb f g getDatosMunicipio
-          "06" -> readFileIntoDb f g getVotosMunicipio
-          "07" -> readFileIntoDb f g getDatosAmbitoSuperior
-          "08" -> readFileIntoDb f g getVotosAmbitoSuperior
-          "09" -> readFileIntoDb f g getDatosMesa
-          "10" -> readFileIntoDb f g getVotosMesa
-          "11" -> readFileIntoDb f g getDatosMunicipio250
-          "12" -> readFileIntoDb f g getVotosMunicipio250
-          _    -> return ()
-          else liftIO $ putStrLn $ "Failed: no .DAT files found in " ++ show b
-        else liftIO $ putStrLn $ "Failed: " ++ show b ++ " is not a directory"
+main = execParser options' >>= \(Options b d u p g) -> do
+  haveDir <- F.isDirectory b
+  if haveDir
+    then runNoLoggingT $ withPostgresqlPool (pgConnOpts d u p) 10 $ \pool -> do
+
+           -- Migration and insertion of static data
+           liftIO $ flip runSqlPersistMPool pool $ do
+             runMigration migrateAll
+             insertStaticDataIntoDb
+
+           -- Insertion of dynamic data, one connection per file
+           datFiles <- liftIO $ F.listDirectory b >>= filterM isDatFile
+           if not (null datFiles)
+             then do _ <- mapConcurrently (readFileIntoDb' g pool) datFiles
+                     return ()
+             else liftIO $ putStrLn $ "Failed: no .DAT files found in " ++ show b
+
+    else putStrLn $ "Failed: " ++ show b ++ " is not a directory"
   where
     options' = info (helper <*> options) helpMessage
     pgConnOpts d u p = B8.pack $ concat [d, u, p]
     isDatFile f = do
       let hasDatExtension = T.toUpper (fromMaybe "" (F.extension f)) == "DAT"
       liftM (hasDatExtension &&) (F.isFile f)
+    readFileIntoDb' g pool f = liftIO $ flip runSqlPersistMPool pool $
+      case head2 f of
+        "02" -> readFileIntoDb f g getProcesoElectoral
+        "03" -> readFileIntoDb f g getCandidatura
+        "04" -> readFileIntoDb f g getCandidato
+        "05" -> readFileIntoDb f g getDatosMunicipio
+        "06" -> readFileIntoDb f g getVotosMunicipio
+        "07" -> readFileIntoDb f g getDatosAmbitoSuperior
+        "08" -> readFileIntoDb f g getVotosAmbitoSuperior
+        "09" -> readFileIntoDb f g getDatosMesa
+        "10" -> readFileIntoDb f g getVotosMesa
+        "11" -> readFileIntoDb f g getDatosMunicipio250
+        "12" -> readFileIntoDb f g getVotosMunicipio250
+        _    -> return ()
     head2 file = T.take 2 (either id id (F.toText (F.filename file)))
 
 grantAccess :: (MonadBaseControl IO m, MonadLogger m, MonadIO m)
@@ -1010,11 +1018,11 @@ readFileIntoDb :: forall a m.
                   F.FilePath -> [String] -> Get a -> ReaderT SqlBackend m ()
 readFileIntoDb file users fGet =
   handleAll (expWhen "upserting rows") $ do
-    liftIO $ putStr "Upserting from " >> print file
+    liftIO $ putStrLn $ "Upserting from " ++ show file
     sourceFile file $= filterWhitespace =$= conduitGet fGet $$ sinkToDb
     -- Works even with empty list!!
     let name = T.filter (/='"') $ tableName (head ([] :: [a]))
-    liftIO $ putStr "Upserted to " >> print name
+    liftIO $ putStrLn $ "Upserted to " ++ show name
     forM_ users $ \user_ ->
       handleAll (expWhen ("granting access privileges for user " ++ user_)) $
       grantAccess name user_
@@ -1025,7 +1033,5 @@ readFileIntoDb file users fGet =
 
 expWhen :: (MonadIO m, MonadCatch m) => String -> SomeException -> m ()
 expWhen msg e = do
-  liftIO $ put2Ln >> putStr "Caught when " >> putStr msg >> putStr " :"
-  liftIO $ print e >> put2Ln
-  where
-    put2Ln = putStrLn "" >> putStrLn ""
+  let text = "\n\n" ++ "Caught when " ++ msg ++ " :" ++ show e ++ "\n\n"
+  liftIO $ putStrLn text

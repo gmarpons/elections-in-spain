@@ -33,6 +33,7 @@ executable elections-in-spain
                , conduit-combinators >= 0.3.0.6
                , exceptions
                , lens
+               , lifted-async >= 0.6.0.1
                , monad-control >= 0.3.3.0
                , monad-logger >= 0.3.11.1
                , optparse-applicative
@@ -47,3 +48,4 @@ executable elections-in-spain
                , transformers >= 0.3.0.0
   -- hs-source-dirs:      
   default-language:    Haskell2010
+  ghc-options:         -threaded
