@@ -34,7 +34,6 @@ import           Control.Monad
 import           Control.Monad.Catch
 import           Control.Monad.IO.Class            (MonadIO, liftIO)
 import           Control.Monad.Logger
-import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Control
 import           Control.Monad.Trans.Reader
 import           Control.Monad.Trans.Resource
@@ -42,8 +41,8 @@ import           Data.Binary
 import           Data.Binary.Get
 import qualified Data.ByteString.Char8             as B8
 import           Data.Conduit
-import           Data.Conduit.Combinators          hiding (concat, filterM,
-                                                    mapM, mapM_, null, print)
+import qualified Data.Conduit.Combinators          as CC
+import qualified Data.Conduit.List                 as CL
 import           Data.Conduit.Serialization.Binary
 import           Data.Maybe
 import           Data.String
@@ -141,7 +140,7 @@ share
       fechaNacimiento                        Day Maybe
       dni                                    Text Maybe sqltype=varchar(10)
       elegido                                String sqltype=varchar(1)
-      Primary tipoEleccion ano mes vuelta codigoCandidatura numeroOrden
+      Primary tipoEleccion ano mes vuelta codigoProvincia codigoDistritoElectoral codigoMunicipio codigoCandidatura numeroOrden
       deriving Show
 
     DatosMunicipios             -- 05xxaamm.DAT
@@ -963,7 +962,7 @@ main :: IO ()
 main = execParser options' >>= \(Options b d u p g) -> do
   haveDir <- F.isDirectory b
   if haveDir
-    then runNoLoggingT $ withPostgresqlPool (pgConnOpts d u p) 10 $ \pool -> do
+    then runNoLoggingT $ withPostgresqlPool (pgConnOpts d u p) 100 $ \pool -> do
 
            -- Migration and insertion of static data
            liftIO $ flip runSqlPersistMPool pool $ do
@@ -975,7 +974,8 @@ main = execParser options' >>= \(Options b d u p g) -> do
            if not (null datFiles)
              then do _ <- mapConcurrently (readFileIntoDb' g pool) datFiles
                      return ()
-             else liftIO $ putStrLn $ "Failed: no .DAT files found in " ++ show b
+             else liftIO $ putStrLn $ "No .DAT files found in " ++ show b
+                                      ++ ", no data inserted"
 
     else putStrLn $ "Failed: " ++ show b ++ " is not a directory"
   where
@@ -988,30 +988,17 @@ main = execParser options' >>= \(Options b d u p g) -> do
       case head2 f of
         "02" -> readFileIntoDb f g getProcesoElectoral
         "03" -> readFileIntoDb f g getCandidatura
-        -- "04" -> readFileIntoDb f g getCandidato
+        "04" -> readFileIntoDb f g getCandidato
         "05" -> readFileIntoDb f g getDatosMunicipio
         "06" -> readFileIntoDb f g getVotosMunicipio
         "07" -> readFileIntoDb f g getDatosAmbitoSuperior
         "08" -> readFileIntoDb f g getVotosAmbitoSuperior
         "09" -> readFileIntoDb f g getDatosMesa
-        -- "10" -> readFileIntoDb f g getVotosMesa
+        "10" -> readFileIntoDb f g getVotosMesa
         "11" -> readFileIntoDb f g getDatosMunicipio250
         "12" -> readFileIntoDb f g getVotosMunicipio250
         _    -> return ()
     head2 file = T.take 2 (either id id (F.toText (F.filename file)))
-
-grantAccess :: (MonadBaseControl IO m, MonadLogger m, MonadIO m)
-               =>
-               Text -> String -> ReaderT SqlBackend m ()
-grantAccess t u = rawExecute (T.concat ["GRANT SELECT ON ", t," TO ", u']) []
-  where
-    u' = T.pack u
-
-sinkToDb :: ( MonadResource m
-            , PersistEntity a, PersistEntityBackend a ~ SqlBackend)
-            =>
-            Sink a (ReaderT SqlBackend m) ()
-sinkToDb = awaitForever $ \c -> lift $ insert_ c
 
 -- | Also grants access to the updated table for users in the second argument.
 readFileIntoDb :: forall a m.
@@ -1023,17 +1010,24 @@ readFileIntoDb :: forall a m.
 readFileIntoDb file users fGet =
   handleAll (expWhen "inserting rows") $ do
     liftIO $ putStrLn $ "inserting from " ++ show file
-    sourceFile file $= filterWhitespace =$= conduitGet fGet $$ sinkToDb
+    -- Need to filter extra white-space of some non-compliant files
+    CC.sourceFile file $=  CC.filterE (/= 10)         -- spaces
+                       =$= conduitGet fGet
+                       =$= CL.sequence (CL.take 1000) -- Insert in groups
+                       $$  CC.mapM_ insertMany_
     -- Works even with empty list!!
     let name = T.filter (/='"') $ tableName (head ([] :: [a]))
     liftIO $ putStrLn $ "Inserted to " ++ show name
     forM_ users $ \user_ ->
       handleAll (expWhen ("granting access privileges for user " ++ user_)) $
       grantAccess name user_
+
+grantAccess :: (MonadBaseControl IO m, MonadLogger m, MonadIO m)
+               =>
+               Text -> String -> ReaderT SqlBackend m ()
+grantAccess t u = rawExecute (T.concat ["GRANT SELECT ON ", t," TO ", u']) []
   where
-    -- This filtering is only necessary because some files don't follow specs in
-    -- 'doc' dir.
-    filterWhitespace = filterE (/= 10)
+    u' = T.pack u
 
 expWhen :: (MonadIO m, MonadCatch m) => String -> SomeException -> m ()
 expWhen msg e = do
