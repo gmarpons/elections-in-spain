@@ -96,6 +96,12 @@ share
       Primary codigoTipoProcesoElectoral codigoProvincia codigoDistritoElectoral
       deriving Show
 
+    -- No extra indexes for DistritosElectorales: this table is not expected to
+    -- be large.
+
+    -- No indexes for (ano, mes), as we can search by (tipoEleccion, ano, mes)
+    -- with PKey's indexes.
+
     ProcesosElectorales         -- 02xxaamm.DAT
       tipoEleccion                           Int
       ano                                    Int
@@ -143,17 +149,19 @@ share
       Primary tipoEleccion ano mes vuelta codigoProvincia codigoDistritoElectoral codigoMunicipio codigoCandidatura numeroOrden
       deriving Show
 
-    DatosMunicipios             -- 05xxaamm.DAT
-      tipoEleccion                           Int
+    DatosMunicipios             -- 05xxaamm.DAT and 1104aamm.DAT
+      tipoEleccion                           Int       -- 4 if < 250
       ano                                    Int
       mes                                    Int
+      -- Called 'vuelta' in < 250
       vueltaOPregunta                        Int
       codigoComunidad                        Int
       codigoProvincia                        Int
       codigoMunicipio                        Int
-      distritoMunicipal                      Int
+      distritoMunicipal                      Int       -- 99 if < 250
+      -- Called 'nombreMunicipio' in < 250
       nombreMunicipioODistrito               Text sqltype=varchar(100)
-      codigoDistritoElectoral                Int
+      codigoDistritoElectoral                Int Maybe -- Nothing if < 250
       codigoPartidoJudicial                  Int
       codigoDiputacionProvincial             Int
       codigoComarca                          Int
@@ -169,24 +177,37 @@ share
       votosNulos                             Int
       votosACandidaturas                     Int
       numeroEscanos                          Int
-      votosAfirmativos                       Int
-      votosNegativos                         Int
+      votosAfirmativos                       Int Maybe -- Nothing if < 250
+      votosNegativos                         Int Maybe -- Nothing if < 250
       datosOficiales                         String sqltype=varchar(1)
+      -- The following field must be Nothing if > 250
+      tipoMunicipio                          String Maybe sqltype=varchar(2)
       Primary tipoEleccion ano mes vueltaOPregunta codigoProvincia codigoMunicipio distritoMunicipal
       deriving Show
 
-    VotosMunicipios             -- 06xxaamm.DAT
+    VotosMunicipios             -- 06xxaamm.DAT and 1204aamm.DAT
       tipoEleccion                           Int
       ano                                    Int
       mes                                    Int
       vuelta                                 Int
       codigoProvincia                        Int
       codigoMunicipio                        Int
-      distritoMunicipal                      Int
+      distritoMunicipal                      Int       -- 99 if < 250
       codigoCandidatura                      Int
-      votos                                  Int
+      -- Called 'votos' in > 250
+      votosCandidatura                       Int
       numeroCandidatos                       Int
-      Primary tipoEleccion ano mes vuelta codigoProvincia codigoMunicipio distritoMunicipal codigoCandidatura
+      -- The following field must be "" if > 250
+      nombreCandidato                        Text sqltype=varchar(75)
+      -- The 5 that follow: Nothing if > 250 (fechaNacimiento and dni can also
+      -- be Noting in some < 250)
+      tipoMunicipio                          String Maybe sqltype=varchar(2)
+      sexo                                   String Maybe sqltype=varchar(1)
+      fechaNacimiento                        Day    Maybe
+      dni                                    Text   Maybe sqltype=varchar(10)
+      votosCandidato                         Int    Maybe
+      elegido                                String Maybe sqltype=varchar(1)
+      Primary tipoEleccion ano mes vuelta codigoProvincia codigoMunicipio distritoMunicipal codigoCandidatura nombreCandidato
       deriving Show
 
     DatosAmbitoSuperior         -- 07xxaamm.DAT
@@ -278,53 +299,6 @@ share
       -- codigoProvincia necessary in PKey because totals per Comunidad have
       -- codigoProvincia = 99.
       Primary tipoEleccion ano mes vuelta codigoComunidad codigoProvincia codigoMunicipio distritoMunicipal codigoSeccion codigoMesa codigoCandidatura
-      deriving Show
-
-    DatosMunicipios250          -- 1104aamm.DAT
-      tipoMunicipio                          String sqltype=varchar(2)
-      ano                                    Int
-      mes                                    Int
-      vuelta                                 Int
-      codigoComunidad                        Int
-      codigoProvincia                        Int
-      codigoMunicipio                        Int
-      nombreMunicipio                        Text sqltype=varchar(100)
-      codigoPartidoJudicial                  Int
-      codigoDiputacionProvincial             Int
-      codigoComarca                          Int
-      poblacionDerecho                       Int
-      numeroMesas                            Int
-      censoIne                               Int
-      censoEscrutinio                        Int
-      censoResidentesExtranjeros             Int
-      votantesResidentesExtranejros          Int
-      votantesPrimerAvanceParticipacion      Int
-      votantesSegundoAvanceParticipacion     Int
-      votosEnBlanco                          Int
-      votosNulos                             Int
-      votosACandidaturas                     Int
-      numeroEscanos                          Int
-      datosOficiales                         String sqltype=varchar(1)
-      Primary ano mes vuelta codigoProvincia codigoMunicipio
-      deriving Show
-
-    VotosMunicipios250          -- 1204aamm.DAT
-      tipoMunicipio                          String sqltype=varchar(2)
-      ano                                    Int
-      mes                                    Int
-      vuelta                                 Int
-      codigoProvincia                        Int
-      codigoMunicipio                        Int
-      codigoCandidatura                      Int
-      votosCandidatura                       Int
-      numeroCandidatos                       Int
-      nombreCandidato                        Text sqltype=varchar(75)
-      sexo                                   String sqltype=varchar(1)
-      fechaNacimiento                        Day Maybe
-      dni                                    Text Maybe sqltype=varchar(10)
-      votosCandidato                         Int
-      elegido                                String sqltype=varchar(1)
-      Primary ano mes vuelta codigoProvincia codigoMunicipio codigoCandidatura nombreCandidato
       deriving Show
   |]
 
@@ -506,7 +480,7 @@ getDatosMunicipio =
   <*> (snd <$> getCodigoMunicipio)
   <*> (snd <$> getDistritoMunicipal)
   <*> getNombreMunicipioODistrito
-  <*> (snd <$> getCodigoDistritoElectoral)
+  <*> (Just . snd <$> getCodigoDistritoElectoral)
   <*> (snd <$> getCodigoPartidoJudicial)
   <*> (snd <$> getCodigoDiputacionProvincial)
   <*> (snd <$> getCodigoComarca)
@@ -522,9 +496,10 @@ getDatosMunicipio =
   <*> (snd <$> getVotosNulos 8)
   <*> (snd <$> getVotosACandidaturas 8)
   <*> (snd <$> getNumeroEscanos 3)
-  <*> (snd <$> getVotosAfirmativos 8)
-  <*> (snd <$> getVotosNegativos 8)
+  <*> (Just . snd <$> getVotosAfirmativos 8)
+  <*> (Just . snd <$> getVotosNegativos 8)
   <*> getDatosOficiales
+  <*> pure Nothing              -- tipoMunicipio
   <*  getSpaces
 
 getVotosMunicipio :: Get VotosMunicipios
@@ -540,6 +515,13 @@ getVotosMunicipio =
   <*> (snd <$> getCodigoCandidatura)
   <*> (snd <$> getVotos 8)
   <*> (snd <$> getNumeroCandidatos 3)
+  <*> pure ""
+  <*> pure Nothing
+  <*> pure Nothing
+  <*> pure Nothing
+  <*> pure Nothing
+  <*> pure Nothing
+  <*> pure Nothing
   <*  getSpaces
 
 getDatosAmbitoSuperior :: Get DatosAmbitoSuperior
@@ -629,17 +611,21 @@ getVotosMesa =
   <*> (snd <$> getVotos 7)
   <*  getSpaces
 
-getDatosMunicipio250 :: Get DatosMunicipios250
+getDatosMunicipio250 :: Get DatosMunicipios
 getDatosMunicipio250 =
-  DatosMunicipios250
-  <$> getTipoMunicipio
+  ((\tm ctor -> ctor (Just tm)) <$> getTipoMunicipio <*>)
+  $
+  DatosMunicipios
+  <$> pure 4                    -- tipoEleccion
   <*> (snd <$> getAno)
   <*> (snd <$> getMes)
   <*> (snd <$> getVueltaOPregunta)
   <*> (snd <$> getCodigoComunidad)
   <*> (snd <$> getCodigoProvincia)
   <*> (snd <$> getCodigoMunicipio)
+  <*> pure 99                   -- distritoMunicipal
   <*> getNombreMunicipio
+  <*> pure Nothing              -- codigoDistritoElectoral
   <*> (snd <$> getCodigoPartidoJudicial)
   <*> (snd <$> getCodigoDiputacionProvincial)
   <*> (snd <$> getCodigoComarca)
@@ -655,29 +641,40 @@ getDatosMunicipio250 =
   <*> (snd <$> getVotosNulos 3)
   <*> (snd <$> getVotosACandidaturas 3)
   <*> (snd <$> getNumeroEscanos 2)
+  <*> pure Nothing              -- votosAfirmativos
+  <*> pure Nothing              -- votosNegativos
   <*> getDatosOficiales
   <*  getSpaces
 
-getVotosMunicipio250 :: Get VotosMunicipios250
+getVotosMunicipio250 :: Get VotosMunicipios
 getVotosMunicipio250 =
-  mk VotosMunicipios250
+  (\tm ctor (nc, s, mF) (mD, vc, e)
+        -> ctor nc (Just tm) (Just s) mF mD (Just vc) (Just e))
   <$> getTipoMunicipio
-  <*> (snd <$> getAno)
-  <*> (snd <$> getMes)
-  <*> (snd <$> getVuelta)
-  <*> (snd <$> getCodigoProvincia)
-  <*> (snd <$> getCodigoMunicipio)
-  <*> (snd <$> getCodigoCandidatura)
-  <*> (snd <$> getVotos 3)      -- votosCandidatura
-  <*> (snd <$> getNumeroCandidatos 2)
-  <*> getNombreCandidato
-  <*> getSexo
-  <*> ((Just <$> getFecha) <|> (Nothing <$ skip 8))
-  <*> (rightFields <|> wrongFields)
-  <*  getSpaces
+  <*> getVotosMunicipios'
+  <*> getVotosMunicipios''
+  <*> getVotosMunicipios'''
   where
-    mk ctor t a m v p c c' v' n n' s f (d, v'', e) =
-      ctor t a m v p c c' v' n n' s f d v'' e
+    getVotosMunicipios' =
+      VotosMunicipios
+      <$> pure 4                -- tipoEleccion
+      <*> (snd <$> getAno)
+      <*> (snd <$> getMes)
+      <*> (snd <$> getVuelta)
+      <*> (snd <$> getCodigoProvincia)
+      <*> (snd <$> getCodigoMunicipio)
+      <*> pure 99               -- distritoMunicipal
+      <*> (snd <$> getCodigoCandidatura)
+      <*> (snd <$> getVotos 3)  -- votosCandidatura
+      <*> (snd <$> getNumeroCandidatos 2)
+    getVotosMunicipios'' =
+      (,,)
+      <$> getNombreCandidato
+      <*> getSexo
+      <*> ((Just <$> getFecha) <|> (Nothing <$ skip 8))
+    getVotosMunicipios''' =
+      (rightFields <|> wrongFields)
+      <*  getSpaces
     rightFields =
       (,,)
       <$> getMaybeDni
