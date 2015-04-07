@@ -897,22 +897,16 @@ getText n = T.stripEnd . T.pack . B8.unpack <$> getByteString n
 
 data Options
   = Options
-    { basedir            :: F.FilePath
-    , dbname             :: String
+    { dbname             :: String
     , user               :: String
     , password           :: String
     , usersToGrantAccess :: [String]
+    , files              :: [F.FilePath]
     }
 
 options :: Parser Options
 options = Options
-  <$> option (fromString <$> str)
-  ( long "basedir"
-    <> short 'b'
-    <> metavar "DIRECTORY"
-    <> help "Directory containing *.DAT files to process"
-  )
-  <*> option (str >>= param "dbname")
+  <$> option (str >>= param "dbname")
   ( long "dbname"
     <> short 'd'
     <> metavar "DB"
@@ -937,9 +931,10 @@ options = Options
   ( long "grant-access-to"
     <> short 'g'
     <> metavar "USERS"
-    <> help "Comma-separated list of DB users to grant access privileges"
+    <> help "Comma-separated list of DB users to grant access privileges to"
     <> value []
   )
+  <*> some (argument (fromString <$> str) (metavar "FILES..."))
   where
     param _ "" = return ""
     param p s  = return $ p ++ "=" ++ s ++ " "
@@ -952,50 +947,54 @@ helpMessage =
             \ from www.infoelectoral.interior.es"
 
 
--- | = Entry point and auxiliary functions.
+-- |
+-- = Entry point and auxiliary functions.
 
--- | Entry point. All SQL commands are run in a single transaction.
+-- | Entry point. All SQL commands related to a file are run in a single
+-- connection/transaction.
 main :: IO ()
-main = execParser options' >>= \(Options b d u p g) -> do
-  haveDir <- F.isDirectory b
-  if haveDir
-    then runNoLoggingT $ withPostgresqlPool (pgConnOpts d u p) 100 $ \pool -> do
+main = execParser options' >>= \(Options d u p g fs) ->
+  runNoLoggingT $ withPostgresqlPool (pgConnOpts d u p) 100 $ \pool -> do
 
-           -- Migration and insertion of static data
-           liftIO $ flip runSqlPersistMPool pool $ do
-             runMigration migrateAll
-             insertStaticDataIntoDb
+    -- Migration and insertion of static data
+    liftIO $ flip runSqlPersistMPool pool $ do
+      runMigration migrateAll
+      insertStaticDataIntoDb
 
-           -- Insertion of dynamic data, one connection per file
-           datFiles <- liftIO $ F.listDirectory b >>= filterM isDatFile
-           if not (null datFiles)
-             then do _ <- mapConcurrently (readFileIntoDb' g pool) datFiles
-                     return ()
-             else liftIO $ putStrLn $ "No .DAT files found in " ++ show b
-                                      ++ ", no data inserted"
+    -- Insertion of dynamic data, one connection per file
+    _ <- mapConcurrently (readFileIntoDb'' g pool) fs
+    return ()
 
-    else putStrLn $ "Failed: " ++ show b ++ " is not a directory"
   where
     options' = info (helper <*> options) helpMessage
     pgConnOpts d u p = B8.pack $ concat [d, u, p]
-    isDatFile f = do
-      let hasDatExtension = T.toUpper (fromMaybe "" (F.extension f)) == "DAT"
-      liftM (hasDatExtension &&) (F.isFile f)
-    readFileIntoDb' g pool f = liftIO $ flip runSqlPersistMPool pool $
-      case head2 f of
-        "02" -> readFileIntoDb f g getProcesoElectoral
-        "03" -> readFileIntoDb f g getCandidatura
-        "04" -> readFileIntoDb f g getCandidato
-        "05" -> readFileIntoDb f g getDatosMunicipio
-        "06" -> readFileIntoDb f g getVotosMunicipio
-        "07" -> readFileIntoDb f g getDatosAmbitoSuperior
-        "08" -> readFileIntoDb f g getVotosAmbitoSuperior
-        "09" -> readFileIntoDb f g getDatosMesa
-        "10" -> readFileIntoDb f g getVotosMesa
-        "11" -> readFileIntoDb f g getDatosMunicipio250
-        "12" -> readFileIntoDb f g getVotosMunicipio250
+    readFileIntoDb'' g pool file = do
+      isRegularFile <- liftIO $ F.isFile file
+      let fileName = F.encodeString file
+      if isRegularFile then
+        case T.toUpper (fromMaybe "" (F.extension file)) of
+          "DAT" -> readFileIntoDb'   g pool file
+          "ZIP" -> readZipFileIntoDb g pool file
+          _     -> liftIO $ putStrLn $
+                   "Error: Filepath " ++ fileName ++ " is not a .DAT or .ZIP file"
+        else liftIO $ putStrLn $
+             "Error: Filepath " ++ fileName ++ " doesn't exist or is not readable"
+    readFileIntoDb'   g pool file = liftIO $ flip runSqlPersistMPool pool $
+      case head2 file of
+        "02" -> readFileIntoDb file g getProcesoElectoral
+        "03" -> readFileIntoDb file g getCandidatura
+        "04" -> readFileIntoDb file g getCandidato
+        "05" -> readFileIntoDb file g getDatosMunicipio
+        "06" -> readFileIntoDb file g getVotosMunicipio
+        "07" -> readFileIntoDb file g getDatosAmbitoSuperior
+        "08" -> readFileIntoDb file g getVotosAmbitoSuperior
+        "09" -> readFileIntoDb file g getDatosMesa
+        "10" -> readFileIntoDb file g getVotosMesa
+        "11" -> readFileIntoDb file g getDatosMunicipio250
+        "12" -> readFileIntoDb file g getVotosMunicipio250
         _    -> return ()
     head2 file = T.take 2 (either id id (F.toText (F.filename file)))
+    readZipFileIntoDb g pool file = return ()
 
 -- | Also grants access to the updated table for users in the second argument.
 readFileIntoDb :: forall a m.
