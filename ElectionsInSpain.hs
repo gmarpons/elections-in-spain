@@ -28,6 +28,7 @@
 {-# LANGUAGE TypeFamilies               #-}
 module Main where
 
+import           Codec.Archive.Zip
 import           Control.Applicative
 import           Control.Concurrent.Async.Lifted
 import           Control.Monad
@@ -39,11 +40,12 @@ import           Control.Monad.Trans.Reader
 import           Control.Monad.Trans.Resource
 import           Data.Binary
 import           Data.Binary.Get
-import qualified Data.ByteString.Char8             as B8
+import qualified Data.ByteString.Char8             as BS8
+import qualified Data.ByteString.Lazy              as LBS
 import           Data.Conduit
 import qualified Data.Conduit.Combinators          as CC
 import qualified Data.Conduit.List                 as CL
-import           Data.Conduit.Serialization.Binary
+import qualified Data.Conduit.Serialization.Binary as CS
 import           Data.Maybe
 import           Data.String
 import           Data.Text                         (Text)
@@ -51,7 +53,7 @@ import qualified Data.Text                         as T
 import           Data.Time.Calendar
 import           Data.Time.LocalTime
 import           Database.Persist                  hiding (get)
-import           Database.Persist.Postgresql       hiding (get)
+import           Database.Persist.Postgresql       hiding (get, getTableName)
 import           Database.Persist.TH
 import qualified Filesystem                        as F
 import qualified Filesystem.Path.CurrentOS         as F
@@ -464,7 +466,7 @@ getCandidato =
   <*> getNombreCandidato
   <*> getSexo
   <*> ((Just <$> getFecha) <|> (Nothing <$ skip 8))
-  <*> getMaybeDni
+  <*> getDniMaybe
   <*> getElegido
   <*  getSpaces
 
@@ -648,8 +650,8 @@ getDatosMunicipio250 =
 
 getVotosMunicipio250 :: Get VotosMunicipios
 getVotosMunicipio250 =
-  (\tm ctor (nc, s, mF) (mD, vc, e)
-        -> ctor nc (Just tm) (Just s) mF mD (Just vc) (Just e))
+  (\tm ctor (nc, s, mF) (mD, vc, e) ->
+    ctor nc (Just tm) (Just s) mF mD (Just vc) (Just e))
   <$> getTipoMunicipio
   <*> getVotosMunicipios'
   <*> getVotosMunicipios''
@@ -677,7 +679,7 @@ getVotosMunicipio250 =
       <*  getSpaces
     rightFields =
       (,,)
-      <$> getMaybeDni
+      <$> getDniMaybe
       <*> (snd <$> getVotos 3)  -- votosCandidato
       <*> getElegido
     -- Some files have a missing byte in dni and an extra space at line end
@@ -688,13 +690,33 @@ getVotosMunicipio250 =
       <*> getElegido
       <*  skip 1
 
+data AnyPersistEntityGetFunc
+  = forall a. (PersistEntity a, PersistEntityBackend a ~ SqlBackend)
+    => MkAPEGF (Get a)
+
+getAnyPersistEntity :: F.FilePath -> Maybe AnyPersistEntityGetFunc
+getAnyPersistEntity filepath =
+  case T.take 2 (either id id (F.toText (F.filename filepath))) of
+    "02" -> Just $ MkAPEGF getProcesoElectoral
+    "03" -> Just $ MkAPEGF getCandidatura
+    "04" -> Just $ MkAPEGF getCandidato
+    "05" -> Just $ MkAPEGF getDatosMunicipio
+    "06" -> Just $ MkAPEGF getVotosMunicipio
+    "07" -> Just $ MkAPEGF getDatosAmbitoSuperior
+    "08" -> Just $ MkAPEGF getVotosAmbitoSuperior
+    "09" -> Just $ MkAPEGF getDatosMesa
+    "10" -> Just $ MkAPEGF getVotosMesa
+    "11" -> Just $ MkAPEGF getDatosMunicipio250
+    "12" -> Just $ MkAPEGF getVotosMunicipio250
+    _    -> Nothing
+
 getSpaces :: Get String
 getSpaces = many getSpace
 
 getSpace :: Get Char
 getSpace = do
   bs <- getByteString 1
-  if B8.null (B8.takeWhile (== ' ') bs)
+  if BS8.null (BS8.takeWhile (== ' ') bs)
     then empty
     else return ' '
 
@@ -711,7 +733,7 @@ getVuelta :: Get (Text, Int)
 getVuelta = getInt 1
 
 getTipoAmbito :: Get String
-getTipoAmbito = B8.unpack <$> getByteString 1
+getTipoAmbito = BS8.unpack <$> getByteString 1
 
 getAmbito :: Get (Text, Int)
 getAmbito = getInt 2
@@ -815,13 +837,13 @@ getVotosNegativos :: Int -> Get (Text, Int)
 getVotosNegativos = getInt
 
 getDatosOficiales :: Get String
-getDatosOficiales = B8.unpack <$> getByteString 1
+getDatosOficiales = BS8.unpack <$> getByteString 1
 
 getNumeroOrden :: Get (Text, Int)
 getNumeroOrden = getInt 3
 
 getTipoCandidato :: Get String
-getTipoCandidato = B8.unpack <$> getByteString 1
+getTipoCandidato = BS8.unpack <$> getByteString 1
 
 -- | Try to read person names as one single 'Text', independently of which of
 -- the following cases we are faced on:
@@ -835,27 +857,27 @@ getTipoCandidato = B8.unpack <$> getByteString 1
 -- 25 bytes. Then, we will concat the pieces without the necessary white-space.
 getNombreCandidato :: Get Text
 getNombreCandidato =
-  (T.unwords . T.words . T.pack . B8.unpack) -- Remove redundant white-space
-  <$> ( B8.append
+  (T.unwords . T.words . T.pack . BS8.unpack) -- Remove redundant white-space
+  <$> ( BS8.append
         <$> getByteString 25
-        <*> (B8.append <$> getByteString 25 <*> getByteString 25)
+        <*> (BS8.append <$> getByteString 25 <*> getByteString 25)
       )
 
 getNombre :: Get Text
 getNombre = getText 25
 
 getSexo :: Get String
-getSexo = B8.unpack <$> getByteString 1
+getSexo = BS8.unpack <$> getByteString 1
 
-getMaybeDni :: Get (Maybe Text)
-getMaybeDni = do
+getDniMaybe :: Get (Maybe Text)
+getDniMaybe = do
   t <- getText 10
   if T.all (== ' ') t
     then return Nothing
     else return $ Just t
 
 getElegido :: Get String
-getElegido = B8.unpack <$> getByteString 1
+getElegido = BS8.unpack <$> getByteString 1
 
 getVotos :: Int -> Get (Text, Int)
 getVotos = getInt
@@ -867,13 +889,13 @@ getNombreAmbitoTerritorial :: Get Text
 getNombreAmbitoTerritorial = getText 50
 
 getCodigoSeccion :: Get String
-getCodigoSeccion = B8.unpack <$> getByteString 4
+getCodigoSeccion = BS8.unpack <$> getByteString 4
 
 getCodigoMesa :: Get String
-getCodigoMesa = B8.unpack <$> getByteString 1
+getCodigoMesa = BS8.unpack <$> getByteString 1
 
 getTipoMunicipio :: Get String
-getTipoMunicipio = B8.unpack <$> getByteString 2
+getTipoMunicipio = BS8.unpack <$> getByteString 2
 
 -- | Given a number of bytes to read, gets and 'Int' (into the Get monad) both
 -- as a number and as Text. It fails if some of the read bytes is not a decimal
@@ -881,15 +903,15 @@ getTipoMunicipio = B8.unpack <$> getByteString 2
 getInt :: Int -> Get (Text, Int)
 getInt n = do
   bs <- getByteString n
-  case B8.readInt bs of
-    Just (i, bs') | B8.null bs' -> return (T.pack (B8.unpack bs), i)
-    _                           -> empty
+  case BS8.readInt bs of
+    Just (i, bs') | BS8.null bs' -> return (T.pack (BS8.unpack bs), i)
+    _                            -> empty
 
 -- | Given a number of bytes to read, gets (into the Get monad) the end-stripped
 -- 'Text' represented by those bytes. It fails if fewer than @n@ bytes are left
 -- in the input.
 getText :: Int -> Get Text
-getText n = T.stripEnd . T.pack . B8.unpack <$> getByteString n
+getText n = T.stripEnd . T.pack . BS8.unpack <$> getByteString n
 
 
 -- |
@@ -897,11 +919,11 @@ getText n = T.stripEnd . T.pack . B8.unpack <$> getByteString n
 
 data Options
   = Options
-    { dbname             :: String
-    , user               :: String
-    , password           :: String
-    , usersToGrantAccess :: [String]
-    , files              :: [F.FilePath]
+    { dbname               :: String
+    , user                 :: String
+    , password             :: String
+    , usersToGrantAccessTo :: [String]
+    , files                :: [F.FilePath]
     }
 
 options :: Parser Options
@@ -953,7 +975,7 @@ helpMessage =
 -- | Entry point. All SQL commands related to a file are run in a single
 -- connection/transaction.
 main :: IO ()
-main = execParser options' >>= \(Options d u p g fs) ->
+main = execParser options' >>= \(Options d u p g filePaths) ->
   runNoLoggingT $ withPostgresqlPool (pgConnOpts d u p) 100 $ \pool -> do
 
     -- Migration and insertion of static data
@@ -961,69 +983,134 @@ main = execParser options' >>= \(Options d u p g fs) ->
       runMigration migrateAll
       insertStaticDataIntoDb
 
-    -- Insertion of dynamic data, one connection per file
-    _ <- mapConcurrently (readFileIntoDb'' g pool) fs
+    -- Insertion of dynamic data
+    mapM_ (readFileIntoDb g pool) filePaths
     return ()
 
   where
     options' = info (helper <*> options) helpMessage
-    pgConnOpts d u p = B8.pack $ concat [d, u, p]
-    readFileIntoDb'' g pool file = do
-      isRegularFile <- liftIO $ F.isFile file
-      let fileName = F.encodeString file
-      if isRegularFile then
-        case T.toUpper (fromMaybe "" (F.extension file)) of
-          "DAT" -> readFileIntoDb'   g pool file
-          "ZIP" -> readZipFileIntoDb g pool file
-          _     -> liftIO $ putStrLn $
-                   "Error: Filepath " ++ fileName ++ " is not a .DAT or .ZIP file"
-        else liftIO $ putStrLn $
-             "Error: Filepath " ++ fileName ++ " doesn't exist or is not readable"
-    readFileIntoDb'   g pool file = liftIO $ flip runSqlPersistMPool pool $
-      case head2 file of
-        "02" -> readFileIntoDb file g getProcesoElectoral
-        "03" -> readFileIntoDb file g getCandidatura
-        "04" -> readFileIntoDb file g getCandidato
-        "05" -> readFileIntoDb file g getDatosMunicipio
-        "06" -> readFileIntoDb file g getVotosMunicipio
-        "07" -> readFileIntoDb file g getDatosAmbitoSuperior
-        "08" -> readFileIntoDb file g getVotosAmbitoSuperior
-        "09" -> readFileIntoDb file g getDatosMesa
-        "10" -> readFileIntoDb file g getVotosMesa
-        "11" -> readFileIntoDb file g getDatosMunicipio250
-        "12" -> readFileIntoDb file g getVotosMunicipio250
-        _    -> return ()
-    head2 file = T.take 2 (either id id (F.toText (F.filename file)))
-    readZipFileIntoDb g pool file = return ()
+    pgConnOpts d u p = BS8.pack $ concat [d, u, p]
 
--- | Also grants access to the updated table for users in the second argument.
-readFileIntoDb :: forall a m.
-                  ( MonadResource m, MonadIO m, MonadCatch m, MonadLogger m
-                  , MonadBaseControl IO m
-                  , PersistEntity a, PersistEntityBackend a ~ SqlBackend)
-                  =>
-                  F.FilePath -> [String] -> Get a -> ReaderT SqlBackend m ()
-readFileIntoDb file users fGet =
-  handleAll (expWhen "inserting rows") $ do
-    liftIO $ putStrLn $ "inserting from " ++ show file
-    -- Need to filter extra white-space of some non-compliant files
-    CC.sourceFile file $=  CC.filterE (/= 10)         -- spaces
-                       =$= conduitGet fGet
-                       =$= CL.sequence (CL.take 1000) -- Insert in groups
-                       $$  CC.mapM_ insertMany_
-    -- Works even with empty list!!
-    let name = T.filter (/='"') $ tableName (head ([] :: [a]))
-    liftIO $ putStrLn $ "Inserted to " ++ show name
-    forM_ users $ \user_ ->
-      handleAll (expWhen ("granting access privileges for user " ++ user_)) $
-      grantAccess name user_
+-- | Read a .DAT or .zip file and insert its contents into the database. A
+-- different DB connection is used for every .DAT file or entry into a .zip
+-- file.
+readFileIntoDb
+  :: forall m.
+     (MonadIO m, MonadCatch m, MonadBaseControl IO m)
+     =>
+     [String] -> ConnectionPool -> F.FilePath -> m ()
+readFileIntoDb grantUsers pool filePath = do
+  isRegularFile <- liftIO $ F.isFile filePath
+  let fileName = (T.unpack . either id id . F.toText) filePath
+  if isRegularFile then runResourceT $
+    case T.toUpper (fromMaybe "" (F.extension filePath)) of
+      "DAT" -> readDatFileIntoDb grantUsers pool filePath
+      "ZIP" -> do entries <- CC.sourceFile filePath $$ consumeZipEntries
+                  mapM_ (readEntryIntoDb grantUsers pool fileName) entries
+                  return ()
+      _     -> liftIO $ putStrLn $
+               "Error: File " ++ fileName ++ " is not a .DAT or .ZIP file"
+    else liftIO $ putStrLn $
+         "Error: File " ++ fileName ++ " doesn't exist or is not readable"
 
-grantAccess :: (MonadBaseControl IO m, MonadLogger m, MonadIO m)
-               =>
-               Text -> String -> ReaderT SqlBackend m ()
-grantAccess t u = rawExecute (T.concat ["GRANT SELECT ON ", t," TO ", u']) []
+-- | Specific function for inserting .DAT file into the database. A new DB
+-- connection is open for every file.
+readDatFileIntoDb
+  :: forall m.
+     (MonadIO m, MonadCatch m)
+     =>
+     [String] -> ConnectionPool -> F.FilePath -> m ()
+readDatFileIntoDb grantUsers pool filePath = do
+  let fileName = (T.unpack . either id id . F.toText) filePath
+  let mGetFunc = getAnyPersistEntity filePath
+  case mGetFunc of
+    Just anyGetFunc ->
+      handleAll (expWhen "inserting rows") $
+        liftIO $ flip runSqlPersistMPool pool $ do
+          liftIO $ putStrLn $ "Inserting rows from " ++ fileName
+          CC.sourceFile filePath $$ consumeDatContents anyGetFunc
+          let tableName' = getTableName anyGetFunc
+          liftIO $ putStrLn $ "Inserted "++ fileName ++" to "++ show tableName'
+          grantAccessAll tableName' grantUsers
+    Nothing ->
+      liftIO $ putStrLn $ "Warning: file " ++ fileName ++ " not processed"
+
+-- | Specific function for inserting an entry from a .zip file into the
+-- database. A new DB connection is open for every entry.
+readEntryIntoDb
+  :: forall m.
+     (MonadIO m, MonadCatch m, MonadBaseControl IO m)
+     =>
+     [String] -> ConnectionPool -> String -> Entry -> m ()
+readEntryIntoDb grantUsers pool zipFileName entry = do
+  let entryPath = eRelativePath entry
+  let entryName = zipFileName ++ "[" ++ entryPath ++ "]"
+  let mGetFunc = getAnyPersistEntity (F.fromText $ T.pack entryPath)
+  case mGetFunc of
+    Just anyGetFunc ->
+      handleAll (expWhen "inserting rows") $
+        liftIO $ flip runSqlPersistMPool pool $ do
+          liftIO $ putStrLn $ "Inserting rows from " ++ entryName
+          CC.sourceLazy (fromEntry entry) $$ consumeDatContents anyGetFunc
+          let tableName' = getTableName anyGetFunc
+          liftIO $ putStrLn $ "Inserted "++ entryName ++" to "++ show tableName'
+          grantAccessAll tableName' grantUsers
+    Nothing ->
+      liftIO $ putStrLn $ "Warning: file " ++ entryName ++ " not processed"
+
+consumeDatContents
+  :: (MonadIO m, MonadCatch m)
+     =>
+     AnyPersistEntityGetFunc
+  -> Consumer BS8.ByteString (ReaderT SqlBackend m) ()
+consumeDatContents (MkAPEGF getFunc) =
+      CC.filterE (/= 10)            -- filter out spaces
+  =$= CS.conduitGet getFunc
+  =$= CL.sequence (CL.take 1000)    -- bulk insert in chunks of size 1000
+  =$  CC.mapM_ insertMany_
+
+consumeZipEntries :: (MonadCatch m) => Consumer BS8.ByteString m [Entry]
+consumeZipEntries =
+      CS.conduitDecode
+  =$= CC.map getEntries
+  =$= CC.concat
+  =$= CC.filter hasDatExt
+  =$  CL.consume
   where
-    u' = T.pack u
+    getEntries ar = catMaybes $ fmap (`findEntryByPath` ar) (filesInArchive ar)
+    hasDatExt en = T.toUpper (fromMaybe "" (F.extension (entryPath en))) == "DAT"
+    entryPath = F.fromText . T.pack . eRelativePath
+
+getTableName :: AnyPersistEntityGetFunc -> Text
+getTableName (MkAPEGF getFunc) = getTableName' getFunc
+  where
+    getTableName'
+      :: forall a.
+         (PersistEntity a, PersistEntityBackend a ~ SqlBackend)
+         =>
+         Get a -> Text
+    -- Following call to head is never performed, so code works even for empty
+    -- lists
+    getTableName' _getFunc = T.filter (/='"') $ tableName (head ([] :: [a]))
+
+grantAccessAll
+  :: forall m.
+     (MonadIO m, MonadCatch m)
+     =>
+     Text -> [String] -> ReaderT SqlBackend m ()
+grantAccessAll tableName' grantUsers =
+  forM_ grantUsers $ \user' ->
+    handleAll (expWhen ("granting access privileges for user " ++ user')) $
+      grantAccess tableName' user'
+
+-- | Grant access to 'table' for database user 'dbUser' using a raw PostgreSQL
+-- query.
+grantAccess
+  :: forall m. MonadIO m
+     =>
+     Text -> String -> ReaderT SqlBackend m ()
+grantAccess table dbUser
+  = rawExecute ("GRANT SELECT ON " <> table <> " TO " <> T.pack dbUser) []
 
 expWhen :: (MonadIO m, MonadCatch m) => String -> SomeException -> m ()
 expWhen msg e = do
