@@ -414,7 +414,6 @@ insertStaticDataIntoDb =
       , DistritosElectorales 15 48 3 "Vizcaya" "DURANGO-ARRATIA"
       , DistritosElectorales 15 48 4 "Vizcaya" "BUSTURIA-URIBE"
       ]
-    liftIO $ putStrLn "Inserted static data"
 
 
 -- |
@@ -898,13 +897,18 @@ getTipoMunicipio :: Get String
 getTipoMunicipio = BS8.unpack <$> getByteString 2
 
 -- | Given a number of bytes to read, gets and 'Int' (into the Get monad) both
--- as a number and as Text. It fails if some of the read bytes is not a decimal
--- digit or fewer than @n@ bytes are left in the input.
+-- as a number and as Text. It fails if fewer than @n@ bytes are left in the
+-- input or some of the read bytes is not a decimal digit, with the exception of
+-- all bytes being spaces. In this case, and due to some .DAT files not honoring
+-- their specification, (<n spaces>, 0) is returned.
 getInt :: Int -> Get (Text, Int)
 getInt n = do
   bs <- getByteString n
   case BS8.readInt bs of
     Just (i, bs') | BS8.null bs' -> return (T.pack (BS8.unpack bs), i)
+    Nothing                      -> if BS8.all (== ' ') bs
+                                    then return (T.pack (BS8.unpack bs), 0)
+                                    else empty
     _                            -> empty
 
 -- | Given a number of bytes to read, gets (into the Get monad) the end-stripped
@@ -980,10 +984,13 @@ main = execParser options' >>= \(Options d u p g filePaths) ->
 
     -- Migration and insertion of static data
     liftIO $ flip runSqlPersistMPool pool $ do
+      liftIO $ putStrLn "Migrating database"
       runMigration migrateAll
+      liftIO $ putStrLn "Inserting static data"
       insertStaticDataIntoDb
 
     -- Insertion of dynamic data
+    liftIO $ putStrLn "Inserting dynamic data"
     mapM_ (readFileIntoDb g pool) filePaths
     return ()
 
