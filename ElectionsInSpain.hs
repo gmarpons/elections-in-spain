@@ -921,12 +921,15 @@ getText n = T.stripEnd . T.pack . BS8.unpack <$> getByteString n
 -- |
 -- = Command line options
 
+data MigrateFlag = Migrate | Don'tMigrate
+
 data Options
   = Options
     { dbname               :: String
     , user                 :: String
     , password             :: String
     , usersToGrantAccessTo :: [String]
+    , migrateFlag          :: MigrateFlag
     , files                :: [F.FilePath]
     }
 
@@ -960,6 +963,10 @@ options = Options
     <> help "Comma-separated list of DB users to grant access privileges to"
     <> value []
   )
+  <*> flag Migrate Don'tMigrate
+  ( long "NoMigration"
+    <> help "Disable DB migration and static data insertion"
+  )
   <*> some (argument (fromString <$> str) (metavar "FILES..."))
   where
     param _ "" = return ""
@@ -979,15 +986,19 @@ helpMessage =
 -- | Entry point. All SQL commands related to a file are run in a single
 -- connection/transaction.
 main :: IO ()
-main = execParser options' >>= \(Options d u p g filePaths) ->
+main = execParser options' >>= \(Options d u p g migrFlag filePaths) ->
   runNoLoggingT $ withPostgresqlPool (pgConnOpts d u p) 100 $ \pool -> do
 
     -- Migration and insertion of static data
-    liftIO $ flip runSqlPersistMPool pool $ do
-      liftIO $ putStrLn "Migrating database"
-      runMigration migrateAll
-      liftIO $ putStrLn "Inserting static data"
-      insertStaticDataIntoDb
+    case migrFlag of
+      Migrate -> liftIO $ flip runSqlPersistMPool pool $ do
+        liftIO $ putStrLn "Migrating database"
+        runMigration migrateAll
+        liftIO $ putStrLn "Inserting static data"
+        insertStaticDataIntoDb
+      Don'tMigrate -> do
+        liftIO $ putStrLn "Skipping database migration"
+        liftIO $ putStrLn "Skipping static data insertion"
 
     -- Insertion of dynamic data
     liftIO $ putStrLn "Inserting dynamic data"
