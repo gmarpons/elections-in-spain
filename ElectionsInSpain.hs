@@ -41,7 +41,6 @@ import           Control.Monad.Trans.Resource
 import           Data.Binary
 import           Data.Binary.Get
 import qualified Data.ByteString.Char8             as BS8
-import qualified Data.ByteString.Lazy              as LBS
 import           Data.Conduit
 import qualified Data.Conduit.Combinators          as CC
 import qualified Data.Conduit.List                 as CL
@@ -1044,6 +1043,7 @@ readDatFileIntoDb grantUsers pool filePath = do
   case mGetFunc of
     Just anyGetFunc ->
       handleAll (expWhen "inserting rows") $
+      handle (expWhenParseError $ "reading file " <> fileName) $
         liftIO $ flip runSqlPersistMPool pool $ do
           liftIO $ putStrLn $ "Inserting rows from " ++ fileName
           CC.sourceFile filePath $$ consumeDatContents anyGetFunc
@@ -1067,6 +1067,7 @@ readEntryIntoDb grantUsers pool zipFileName entry = do
   case mGetFunc of
     Just anyGetFunc ->
       handleAll (expWhen "inserting rows") $
+      handle (expWhenParseError $ "reading file " <> entryName) $
         liftIO $ flip runSqlPersistMPool pool $ do
           liftIO $ putStrLn $ "Inserting rows from " ++ entryName
           CC.sourceLazy (fromEntry entry) $$ consumeDatContents anyGetFunc
@@ -1130,7 +1131,13 @@ grantAccess
 grantAccess table dbUser
   = rawExecute ("GRANT SELECT ON " <> table <> " TO " <> T.pack dbUser) []
 
-expWhen :: (MonadIO m, MonadCatch m) => String -> SomeException -> m ()
+expWhen :: MonadIO m => String -> SomeException -> m ()
 expWhen msg e = do
   let text = "\n\n" ++ "Caught when " ++ msg ++ " :" ++ show e ++ "\n\n"
+  liftIO $ putStrLn text
+
+expWhenParseError :: MonadIO m => String -> CS.ParseError -> m ()
+expWhenParseError msg e@(CS.ParseError unconsumed' _ _) = do
+  let e' = e {CS.unconsumed = BS8.take 1500 unconsumed'}
+  let text = "\n\n" ++ "Caught when " ++ msg ++ " :" ++ show e' ++ "\n\n"
   liftIO $ putStrLn text
