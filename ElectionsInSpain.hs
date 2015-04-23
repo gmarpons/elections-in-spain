@@ -143,6 +143,9 @@ share
       numeroOrden                            Int
       tipoCandidato                          String sqltype=varchar(1)
       nombreCandidato                        Text sqltype=varchar(75)
+      nombrePila                             Text Maybe sqltype=varchar(25)
+      primerApellido                         Text Maybe sqltype=varchar(25)
+      segundoApellido                        Text Maybe sqltype=varchar(25)
       sexo                                   String sqltype=varchar(1)
       fechaNacimiento                        Day Maybe
       dni                                    Text Maybe sqltype=varchar(10)
@@ -200,6 +203,9 @@ share
       numeroCandidatos                       Int
       -- The following field must be "" if > 250
       nombreCandidato                        Text sqltype=varchar(75)
+      nombrePila                             Text Maybe sqltype=varchar(25)
+      primerApellido                         Text Maybe sqltype=varchar(25)
+      segundoApellido                        Text Maybe sqltype=varchar(25)
       -- The 5 that follow: Nothing if > 250 (fechaNacimiento and dni can also
       -- be Noting in some < 250)
       tipoMunicipio                          String Maybe sqltype=varchar(2)
@@ -448,25 +454,32 @@ getCandidatura =
   <*> (snd <$> getCodigoCandidatura)
   <*  getSpaces
 
-getCandidato :: Get Candidatos
-getCandidato =
-  Candidatos
-  <$> (snd <$> getTipoEleccion)
-  <*> (snd <$> getAno)
-  <*> (snd <$> getMes)
-  <*> (snd <$> getVuelta)
-  <*> (snd <$> getCodigoProvincia)
-  <*> (snd <$> getCodigoDistritoElectoral)
-  <*> (snd <$> getCodigoMunicipio)
-  <*> (snd <$> getCodigoCandidatura)
-  <*> (snd <$> getNumeroOrden)
-  <*> getTipoCandidato
-  <*> getNombreCandidato
-  <*> getSexo
-  <*> ((Just <$> getFecha) <|> (Nothing <$ skip 8))
-  <*> getDniMaybe
-  <*> getElegido
+getCandidato :: PersonNameMode -> Get Candidatos
+getCandidato mode =
+  (\ctor (nc, np, a1, a2) (s, f, mD, e) -> ctor nc np a1 a2 s f mD e)
+  <$> getCandidato'
+  <*> getNombreCandidato mode
+  <*> getCandidato''
   <*  getSpaces
+  where
+    getCandidato' =
+      Candidatos
+      <$> (snd <$> getTipoEleccion)
+      <*> (snd <$> getAno)
+      <*> (snd <$> getMes)
+      <*> (snd <$> getVuelta)
+      <*> (snd <$> getCodigoProvincia)
+      <*> (snd <$> getCodigoDistritoElectoral)
+      <*> (snd <$> getCodigoMunicipio)
+      <*> (snd <$> getCodigoCandidatura)
+      <*> (snd <$> getNumeroOrden)
+      <*> getTipoCandidato
+    getCandidato'' =
+      (,,,)
+      <$> getSexo
+      <*> ((Just <$> getFecha) <|> (Nothing <$ skip 8))
+      <*> getDniMaybe
+      <*> getElegido
 
 getDatosMunicipio :: Get DatosMunicipios
 getDatosMunicipio =
@@ -516,6 +529,9 @@ getVotosMunicipio =
   <*> (snd <$> getVotos 8)
   <*> (snd <$> getNumeroCandidatos 3)
   <*> pure ""
+  <*> pure Nothing
+  <*> pure Nothing
+  <*> pure Nothing
   <*> pure Nothing
   <*> pure Nothing
   <*> pure Nothing
@@ -646,12 +662,13 @@ getDatosMunicipio250 =
   <*> getDatosOficiales
   <*  getSpaces
 
-getVotosMunicipio250 :: Get VotosMunicipios
-getVotosMunicipio250 =
-  (\tm ctor (nc, s, mF) (mD, vc, e) ->
-    ctor nc (Just tm) (Just s) mF mD (Just vc) (Just e))
+getVotosMunicipio250 :: PersonNameMode -> Get VotosMunicipios
+getVotosMunicipio250 mode =
+  (\tm ctor (nc, np, a1, a2) (s, mF) (mD, vc, e) ->
+    ctor nc np a1 a2 (Just tm) (Just s) mF mD (Just vc) (Just e))
   <$> getTipoMunicipio
   <*> getVotosMunicipios'
+  <*> getNombreCandidato mode
   <*> getVotosMunicipios''
   <*> getVotosMunicipios'''
   where
@@ -668,9 +685,8 @@ getVotosMunicipio250 =
       <*> (snd <$> getVotos 3)  -- votosCandidatura
       <*> (snd <$> getNumeroCandidatos 2)
     getVotosMunicipios'' =
-      (,,)
-      <$> getNombreCandidato
-      <*> getSexo
+      (,)
+      <$> getSexo
       <*> ((Just <$> getFecha) <|> (Nothing <$ skip 8))
     getVotosMunicipios''' =
       (rightFields <|> wrongFields)
@@ -691,21 +707,23 @@ getVotosMunicipio250 =
 data AnyPersistEntityGetFunc
   = forall a. (PersistEntity a, PersistEntityBackend a ~ SqlBackend)
     => MkAPEGF (Get a)
+  | forall a. (PersistEntity a, PersistEntityBackend a ~ SqlBackend)
+    => MkAPEGF' (PersonNameMode -> Get a)
 
 getAnyPersistEntity :: F.FilePath -> Maybe AnyPersistEntityGetFunc
 getAnyPersistEntity filepath =
   case T.take 2 (either id id (F.toText (F.filename filepath))) of
-    "02" -> Just $ MkAPEGF getProcesoElectoral
-    "03" -> Just $ MkAPEGF getCandidatura
-    "04" -> Just $ MkAPEGF getCandidato
-    "05" -> Just $ MkAPEGF getDatosMunicipio
-    "06" -> Just $ MkAPEGF getVotosMunicipio
-    "07" -> Just $ MkAPEGF getDatosAmbitoSuperior
-    "08" -> Just $ MkAPEGF getVotosAmbitoSuperior
-    "09" -> Just $ MkAPEGF getDatosMesa
-    "10" -> Just $ MkAPEGF getVotosMesa
-    "11" -> Just $ MkAPEGF getDatosMunicipio250
-    "12" -> Just $ MkAPEGF getVotosMunicipio250
+    "02" -> Just $ MkAPEGF  getProcesoElectoral
+    "03" -> Just $ MkAPEGF  getCandidatura
+    "04" -> Just $ MkAPEGF' getCandidato
+    "05" -> Just $ MkAPEGF  getDatosMunicipio
+    "06" -> Just $ MkAPEGF  getVotosMunicipio
+    "07" -> Just $ MkAPEGF  getDatosAmbitoSuperior
+    "08" -> Just $ MkAPEGF  getVotosAmbitoSuperior
+    "09" -> Just $ MkAPEGF  getDatosMesa
+    "10" -> Just $ MkAPEGF  getVotosMesa
+    "11" -> Just $ MkAPEGF  getDatosMunicipio250
+    "12" -> Just $ MkAPEGF' getVotosMunicipio250
     _    -> Nothing
 
 getSpaces :: Get String
@@ -843,23 +861,69 @@ getNumeroOrden = getInt 3
 getTipoCandidato :: Get String
 getTipoCandidato = BS8.unpack <$> getByteString 1
 
--- | Try to read person names as one single 'Text', independently of which of
--- the following cases we are faced on:
+class
+  (PersistEntity a, PersistEntityBackend a ~ SqlBackend)
+  =>
+  HasPersonName a
+  where
+    nameOneField    :: (HasPersonName a) => a -> Text
+    nameThreeFields :: (HasPersonName a) => a -> Text
+    fields          :: [a -> Maybe Text]
+    nameThreeFields e = T.intercalate " " $ fromMaybe "" <$> ap fields [e]
+
+instance HasPersonName Candidatos where
+  nameOneField = candidatosNombreCandidato
+  fields = [ candidatosNombrePila
+           , candidatosPrimerApellido
+           , candidatosSegundoApellido ]
+
+instance HasPersonName VotosMunicipios where
+  nameOneField = votosMunicipiosNombreCandidato
+  fields = [ votosMunicipiosNombrePila
+           , votosMunicipiosPrimerApellido
+           , votosMunicipiosSegundoApellido ]
+
+-- | Read person names in four different ways, depending on
+-- parameter. 'OneFieldName' and 'ThreeFieldsName' are the main alternatives
+-- that must be chosen depending on file format. If 'NoInteractionName' is
+-- passed, and algorithm is used that tries to read person names as one single
+-- 'Text', independently of which of the following cases we are faced on:
 --
 -- 1. Name and two surnames are split up into three pieces of 25 bytes length.
 -- 2. All the 75 bytes are a single piece of data with the name and two
 -- surnames.
 --
--- There is one situation in which the following algorithm does the wrong thing:
--- we are in case (1) and some of the two first pieces of text are using all the
--- 25 bytes. Then, we will concat the pieces without the necessary white-space.
-getNombreCandidato :: Get Text
-getNombreCandidato =
-  (T.unwords . T.words . T.pack . BS8.unpack) -- Remove redundant white-space
-  <$> ( BS8.append
-        <$> getByteString 25
-        <*> (BS8.append <$> getByteString 25 <*> getByteString 25)
-      )
+-- There is one situation in which the algorithm does the wrong thing: we are in
+-- case (1) and some of the two first pieces of text are using all the 25
+-- bytes. Then, we will concat the pieces without the necessary white-space.
+--
+-- The option 'TryOneAndThreeFieldsName' is used to get both the results of the
+-- first two options, to possibly show the results to the user and let her chose
+-- between them.
+getNombreCandidato
+  :: PersonNameMode -> Get (Text, Maybe Text, Maybe Text, Maybe Text)
+getNombreCandidato OneFieldName =
+  (\t -> (t, Nothing, Nothing, Nothing))
+  <$> (T.stripEnd . T.pack . BS8.unpack)
+  <$> getByteString 75
+getNombreCandidato ThreeFieldsName =
+  (\np a1 a2 -> (np <> " " <> a1 <> " " <> a2, Just np, Just a1, Just a2))
+  <$> ((T.stripEnd . T.pack . BS8.unpack) <$> getByteString 25)
+  <*> ((T.stripEnd . T.pack . BS8.unpack) <$> getByteString 25)
+  <*> ((T.stripEnd . T.pack . BS8.unpack) <$> getByteString 25)
+getNombreCandidato NoInteractionName =
+  (\nc -> (nc, Nothing, Nothing, Nothing))
+  <$> (T.unwords . T.words . T.pack . BS8.unpack) -- Remove redundant whitespace
+  <$> getByteString 75
+getNombreCandidato TryOneAndThreeFieldsName =
+  (\np a1 a2 -> ( T.stripEnd (np <> a1 <> a2)
+                , Just (T.stripEnd np)
+                , Just (T.stripEnd a1)
+                , Just (T.stripEnd a2) )
+  )
+  <$> ((T.pack . BS8.unpack) <$> getByteString 25)
+  <*> ((T.pack . BS8.unpack) <$> getByteString 25)
+  <*> ((T.pack . BS8.unpack) <$> getByteString 25)
 
 getNombre :: Get Text
 getNombre = getText 25
@@ -999,6 +1063,13 @@ main = execParser options' >>= \(Options d u p g migrFlag filePaths) ->
         liftIO $ putStrLn "Skipping database migration"
         liftIO $ putStrLn "Skipping static data insertion"
 
+    fileRefsL <- mapM toFileRefsWithPersonNameMode filePaths
+    let fileRefs = concat fileRefsL
+    forM_ fileRefs $ \(fRef, mode) -> do
+      case fRef of
+        Path p -> liftIO $ putStrLn $ show p <> ", " <> show mode
+        ZipEntry e -> liftIO $ putStrLn $ eRelativePath e <> ", " <> show mode
+
     -- Insertion of dynamic data
     liftIO $ putStrLn "Inserting dynamic data"
     mapM_ (readFileIntoDb g pool) filePaths
@@ -1007,6 +1078,109 @@ main = execParser options' >>= \(Options d u p g migrFlag filePaths) ->
   where
     options' = info (helper <*> options) helpMessage
     pgConnOpts d u p = BS8.pack $ concat [d, u, p]
+
+data PersonNameMode
+  = OneFieldName
+  | ThreeFieldsName
+  | NoInteractionName
+  | TryOneAndThreeFieldsName
+  deriving Show
+
+data FileRef
+  = Path F.FilePath
+  | ZipEntry Entry
+
+-- | Returns a list of @FileRef@s with an associated @PersonNameMode@ that
+-- depends on the result of user interaction. In case of .zip files one pair per
+-- entry is returned. A @FileRef@ will have 'Nothing' assigned if it doesn't
+-- contain person names. Also in the case of a parsing or I/O error while
+-- reading the file.
+toFileRefsWithPersonNameMode
+  :: forall m.
+     (MonadIO m, MonadCatch m, MonadBaseControl IO m)
+     =>
+     F.FilePath -> m [(FileRef, Maybe PersonNameMode)]
+toFileRefsWithPersonNameMode filePath = do
+  isRegularFile <- liftIO $ F.isFile filePath
+  if isRegularFile then runResourceT $
+    childRefs (Path filePath) extension (take 2 (toStr (F.basename filePath)))
+    else do liftIO $ putStrLn $ "Error: File " ++ toStr filePath
+              ++ " doesn't exist or is not readable"
+            return []
+  where
+    childRefs fRef "DAT" "04" = do m <-    sourceFileRef fRef
+                                        $$ askForPersonNameMode getCandidato'
+                                   return [(fRef, Just m)]
+    childRefs fRef "DAT" "12" = do m <-    sourceFileRef fRef
+                                        $$ askForPersonNameMode getVotos'
+                                   return [(fRef, Just m)]
+    childRefs fRef "DAT" _    = return [(fRef, Nothing)]
+    childRefs _    "ZIP" _    =     sourceDatEntriesFromZipFile filePath
+                                $=  CC.mapM childRefs'
+                                =$= CC.concat
+                                $$  CL.consume
+    childRefs _    _     _    = do liftIO $ putStrLn $ "Error: File "
+                                     ++ toStr filePath
+                                     ++ " is not a .DAT or .ZIP file"
+                                   return []
+    childRefs' e = childRefs (ZipEntry e) "DAT" (take 2 (eRelativePath e))
+    sourceFileRef (Path p)     = CC.sourceFile p
+    sourceFileRef (ZipEntry e) = CC.sourceLazy (fromEntry e)
+    extension = T.toUpper (fromMaybe "" (F.extension filePath))
+    toStr = T.unpack . either id id . F.toText
+    getCandidato' = getCandidato TryOneAndThreeFieldsName
+    getVotos'     = getVotosMunicipio250 TryOneAndThreeFieldsName
+
+sourceDatEntriesFromZipFile
+  :: forall m.
+     (MonadResource m, MonadCatch m)
+     =>
+     F.FilePath -> Producer m Entry
+sourceDatEntriesFromZipFile filePath =
+  CC.sourceFile filePath
+  $=  CS.conduitDecode
+  =$= CC.map getEntries
+  =$= CC.concat
+  =$= CC.filter hasDatExt
+  where
+    getEntries ar = catMaybes $ fmap (`findEntryByPath` ar) (filesInArchive ar)
+    hasDatExt en = T.toUpper (fromMaybe "" (F.extension (entryPath en))) == "DAT"
+    entryPath = F.fromText . T.pack . eRelativePath
+
+askForPersonNameMode
+  :: forall a m.
+     (HasPersonName a, MonadResource m)
+     =>
+     Get a -> Consumer BS8.ByteString m PersonNameMode
+askForPersonNameMode getFunc =
+      CC.filterE (/= 10)        -- filter out spaces
+  =$= CS.conduitGet getFunc
+  =$  askUntilUserChooses
+
+askUntilUserChooses
+  :: forall a m.
+     (HasPersonName a, MonadResource m)
+     =>
+     Consumer a m PersonNameMode
+askUntilUserChooses = do
+  mEntity <- await
+  case mEntity of
+    Nothing     -> return NoInteractionName
+    Just entity -> do
+      liftIO $ putStrLn "Which of the two choices (A or B) looks better:"
+      liftIO $ putStrLn $ "A: [" <> T.unpack (nameOneField entity) <> "]"
+      liftIO $ putStrLn $ "B: [" <> T.unpack (nameThreeFields entity) <> "]"
+      isNull <- CC.null
+      let getCharLoop = do
+            liftIO $ putStrLn $ "Type 'a' or 'b'"
+              <> if isNull then ":" else " (or 'm' for more examples):"
+            line <- liftIO getLine
+            case line of
+              "a" -> return OneFieldName
+              "b" -> return ThreeFieldsName
+              "m" -> if isNull then getCharLoop else askUntilUserChooses
+              _   -> getCharLoop
+      getCharLoop
 
 -- | Read a .DAT or .zip file and insert its contents into the database. A
 -- different DB connection is used for every .DAT file or entry into a .zip
@@ -1042,11 +1216,11 @@ readDatFileIntoDb grantUsers pool filePath = do
   let mGetFunc = getAnyPersistEntity filePath
   case mGetFunc of
     Just anyGetFunc ->
-      handleAll (expWhen "inserting rows") $
+      handleAll (expWhen $ "inserting rows to " <> fileName) $
       handle (expWhenParseError $ "reading file " <> fileName) $
         liftIO $ flip runSqlPersistMPool pool $ do
           liftIO $ putStrLn $ "Inserting rows from " ++ fileName
-          CC.sourceFile filePath $$ consumeDatContents anyGetFunc
+          CC.sourceFile filePath $$ sinkDatContentsToDb anyGetFunc
           let tableName' = getTableName anyGetFunc
           liftIO $ putStrLn $ "Inserted "++ fileName ++" to "++ show tableName'
           grantAccessAll tableName' grantUsers
@@ -1066,27 +1240,28 @@ readEntryIntoDb grantUsers pool zipFileName entry = do
   let mGetFunc = getAnyPersistEntity (F.fromText $ T.pack entryPath)
   case mGetFunc of
     Just anyGetFunc ->
-      handleAll (expWhen "inserting rows") $
+      handleAll (expWhen $ "inserting rows to " <> entryName) $
       handle (expWhenParseError $ "reading file " <> entryName) $
         liftIO $ flip runSqlPersistMPool pool $ do
           liftIO $ putStrLn $ "Inserting rows from " ++ entryName
-          CC.sourceLazy (fromEntry entry) $$ consumeDatContents anyGetFunc
+          CC.sourceLazy (fromEntry entry) $$ sinkDatContentsToDb anyGetFunc
           let tableName' = getTableName anyGetFunc
           liftIO $ putStrLn $ "Inserted "++ entryName ++" to "++ show tableName'
           grantAccessAll tableName' grantUsers
     Nothing ->
       liftIO $ putStrLn $ "Warning: file " ++ entryName ++ " not processed"
 
-consumeDatContents
+sinkDatContentsToDb
   :: (MonadIO m, MonadCatch m)
      =>
      AnyPersistEntityGetFunc
   -> Consumer BS8.ByteString (ReaderT SqlBackend m) ()
-consumeDatContents (MkAPEGF getFunc) =
+sinkDatContentsToDb (MkAPEGF getFunc) =
       CC.filterE (/= 10)            -- filter out spaces
   =$= CS.conduitGet getFunc
   =$= CL.sequence (CL.take 1000)    -- bulk insert in chunks of size 1000
   =$  CC.mapM_ insertMany_
+-- TODO sinkDatContentsToDb (MkAPEGF' getFunc)
 
 consumeZipEntries :: (MonadCatch m) => Consumer BS8.ByteString m [Entry]
 consumeZipEntries =
@@ -1101,16 +1276,20 @@ consumeZipEntries =
     entryPath = F.fromText . T.pack . eRelativePath
 
 getTableName :: AnyPersistEntityGetFunc -> Text
-getTableName (MkAPEGF getFunc) = getTableName' getFunc
+getTableName = getTableName'
   where
-    getTableName'
+    getTableName' :: AnyPersistEntityGetFunc -> Text
+    getTableName' (MkAPEGF  getFunc) = getTableName'' getFunc
+    getTableName' (MkAPEGF' getFunc) = getTableName'' $
+                                       getFunc TryOneAndThreeFieldsName
+    getTableName''
       :: forall a.
          (PersistEntity a, PersistEntityBackend a ~ SqlBackend)
          =>
          Get a -> Text
-    -- Following call to head is never performed, so code works even for empty
-    -- lists
-    getTableName' _getFunc = T.filter (/='"') $ tableName (head ([] :: [a]))
+    -- The following call to head is never performed, so code works even for
+    -- empty lists
+    getTableName'' _getFunc = T.filter (/='"') $ tableName (head ([] :: [a]))
 
 grantAccessAll
   :: forall m.
