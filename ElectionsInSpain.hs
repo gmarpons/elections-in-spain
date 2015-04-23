@@ -1063,16 +1063,18 @@ main = execParser options' >>= \(Options d u p g migrFlag filePaths) ->
         liftIO $ putStrLn "Skipping database migration"
         liftIO $ putStrLn "Skipping static data insertion"
 
+    -- Ask for person name syntax
     fileRefsL <- mapM toFileRefsWithPersonNameMode filePaths
     let fileRefs = concat fileRefsL
     forM_ fileRefs $ \(fRef, mode) -> do
       case fRef of
         Path p -> liftIO $ putStrLn $ show p <> ", " <> show mode
-        ZipEntry e -> liftIO $ putStrLn $ eRelativePath e <> ", " <> show mode
+        ZipEntry _ e -> liftIO $ putStrLn $ eRelativePath e <> ", " <> show mode
 
     -- Insertion of dynamic data
     liftIO $ putStrLn "Inserting dynamic data"
     mapM_ (readFileIntoDb g pool) filePaths
+    -- mapM_ (readFileRefIntoDb g pool) fileRefs
     return ()
 
   where
@@ -1088,13 +1090,13 @@ data PersonNameMode
 
 data FileRef
   = Path F.FilePath
-  | ZipEntry Entry
+  | ZipEntry F.FilePath Entry
 
 -- | Returns a list of @FileRef@s with an associated @PersonNameMode@ that
 -- depends on the result of user interaction. In case of .zip files one pair per
 -- entry is returned. A @FileRef@ will have 'Nothing' assigned if it doesn't
--- contain person names. Also in the case of a parsing or I/O error while
--- reading the file.
+-- contain person names. In the case of a parsing or I/O error while reading the
+-- file (or one of its entries) an empty list is returned.
 toFileRefsWithPersonNameMode
   :: forall m.
      (MonadIO m, MonadCatch m, MonadBaseControl IO m)
@@ -1103,33 +1105,45 @@ toFileRefsWithPersonNameMode
 toFileRefsWithPersonNameMode filePath = do
   isRegularFile <- liftIO $ F.isFile filePath
   if isRegularFile then runResourceT $
-    childRefs (Path filePath) extension (take 2 (toStr (F.basename filePath)))
+    handleAll (expWhen' $ "reading file " <> toStr filePath) $
+      childRefs (Path filePath) extension (take 2 (toStr (F.basename filePath)))
     else do liftIO $ putStrLn $ "Error: File " ++ toStr filePath
               ++ " doesn't exist or is not readable"
             return []
   where
-    childRefs fRef "DAT" "04" = do m <-    sourceFileRef fRef
+    childRefs fRef "DAT" "04" = handle (expParse fRef) $
+                                do m <-    sourceFileRef fRef
                                         $$ askForPersonNameMode getCandidato'
                                    return [(fRef, Just m)]
-    childRefs fRef "DAT" "12" = do m <-    sourceFileRef fRef
+    childRefs fRef "DAT" "12" = handle (expParse fRef) $
+                                do m <-    sourceFileRef fRef
                                         $$ askForPersonNameMode getVotos'
                                    return [(fRef, Just m)]
     childRefs fRef "DAT" _    = return [(fRef, Nothing)]
     childRefs _    "ZIP" _    =     sourceDatEntriesFromZipFile filePath
-                                $=  CC.mapM childRefs'
+                                $=  CC.mapM recCall
                                 =$= CC.concat
                                 $$  CL.consume
     childRefs _    _     _    = do liftIO $ putStrLn $ "Error: File "
                                      ++ toStr filePath
                                      ++ " is not a .DAT or .ZIP file"
                                    return []
-    childRefs' e = childRefs (ZipEntry e) "DAT" (take 2 (eRelativePath e))
-    sourceFileRef (Path p)     = CC.sourceFile p
-    sourceFileRef (ZipEntry e) = CC.sourceLazy (fromEntry e)
+    recCall e = childRefs (ZipEntry filePath e) "DAT" (take 2 (eRelativePath e))
+    sourceFileRef (Path p)       = CC.sourceFile p
+    sourceFileRef (ZipEntry _ e) = CC.sourceLazy (fromEntry e)
     extension = T.toUpper (fromMaybe "" (F.extension filePath))
     toStr = T.unpack . either id id . F.toText
     getCandidato' = getCandidato TryOneAndThreeFieldsName
     getVotos'     = getVotosMunicipio250 TryOneAndThreeFieldsName
+    expParse fRef exception = do
+      let msg = case fRef of
+            Path       p -> "reading file " <> toStr p
+            ZipEntry p e -> "reading entry "
+                            <> toStr p
+                            <> "[" <> eRelativePath e <> "]"
+      expWhenParseError msg exception
+      return []
+    expWhen' msg exception = do { expWhen msg exception; return [] }
 
 sourceDatEntriesFromZipFile
   :: forall m.
