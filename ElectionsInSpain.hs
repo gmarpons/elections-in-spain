@@ -710,9 +710,9 @@ data AnyPersistEntityGetFunc
   | forall a. (PersistEntity a, PersistEntityBackend a ~ SqlBackend)
     => MkAPEGF' (PersonNameMode -> Get a)
 
-getAnyPersistEntity :: F.FilePath -> Maybe AnyPersistEntityGetFunc
-getAnyPersistEntity filepath =
-  case T.take 2 (either id id (F.toText (F.filename filepath))) of
+getAnyPersistEntity :: FileRef -> Maybe AnyPersistEntityGetFunc
+getAnyPersistEntity fRef =
+  case twoFirstDigits fRef of
     "02" -> Just $ MkAPEGF  getProcesoElectoral
     "03" -> Just $ MkAPEGF  getCandidatura
     "04" -> Just $ MkAPEGF' getCandidato
@@ -1066,15 +1066,10 @@ main = execParser options' >>= \(Options d u p g migrFlag filePaths) ->
     -- Ask for person name syntax
     fileRefsL <- mapM toFileRefsWithPersonNameMode filePaths
     let fileRefs = concat fileRefsL
-    forM_ fileRefs $ \(fRef, mode) -> do
-      case fRef of
-        Path p -> liftIO $ putStrLn $ show p <> ", " <> show mode
-        ZipEntry _ e -> liftIO $ putStrLn $ eRelativePath e <> ", " <> show mode
 
     -- Insertion of dynamic data
     liftIO $ putStrLn "Inserting dynamic data"
-    mapM_ (readFileIntoDb g pool) filePaths
-    -- mapM_ (readFileRefIntoDb g pool) fileRefs
+    mapM_ (readFileRefIntoDb g pool) fileRefs
     return ()
 
   where
@@ -1092,6 +1087,26 @@ data FileRef
   = Path F.FilePath
   | ZipEntry F.FilePath Entry
 
+instance Show FileRef where
+  show (Path p)       = filePathToStr p
+  show (ZipEntry p e) = filePathToStr p <> "[" <> eRelativePath e <> "]"
+
+filePathToStr :: F.FilePath -> String
+filePathToStr p = T.unpack $ either id id $ F.toText p
+
+twoFirstDigits :: FileRef -> String
+twoFirstDigits (Path p)
+  = take 2 $ T.unpack $ either id id $ F.toText $ F.basename p
+twoFirstDigits (ZipEntry _p e)
+  = twoFirstDigits $ Path $ F.fromText $ T.pack $ eRelativePath e
+
+sourceFileRef
+  :: forall m.
+     MonadResource m
+     => FileRef -> Producer m BS8.ByteString
+sourceFileRef (Path p)       = CC.sourceFile p
+sourceFileRef (ZipEntry _ e) = CC.sourceLazy (fromEntry e)
+
 -- | Returns a list of @FileRef@s with an associated @PersonNameMode@ that
 -- depends on the result of user interaction. In case of .zip files one pair per
 -- entry is returned. A @FileRef@ will have 'Nothing' assigned if it doesn't
@@ -1105,9 +1120,9 @@ toFileRefsWithPersonNameMode
 toFileRefsWithPersonNameMode filePath = do
   isRegularFile <- liftIO $ F.isFile filePath
   if isRegularFile then runResourceT $
-    handleAll (expWhen' $ "reading file " <> toStr filePath) $
-      childRefs (Path filePath) extension (take 2 (toStr (F.basename filePath)))
-    else do liftIO $ putStrLn $ "Error: File " ++ toStr filePath
+    handleAll (expWhen' $ "reading file " <> show filePath) $
+      childRefs (Path filePath) extension (twoFirstDigits (Path filePath))
+    else do liftIO $ putStrLn $ "Error: File " ++ show filePath
               ++ " doesn't exist or is not readable"
             return []
   where
@@ -1125,23 +1140,16 @@ toFileRefsWithPersonNameMode filePath = do
                                 =$= CC.concat
                                 $$  CL.consume
     childRefs _    _     _    = do liftIO $ putStrLn $ "Error: File "
-                                     ++ toStr filePath
+                                     ++ show filePath
                                      ++ " is not a .DAT or .ZIP file"
                                    return []
-    recCall e = childRefs (ZipEntry filePath e) "DAT" (take 2 (eRelativePath e))
-    sourceFileRef (Path p)       = CC.sourceFile p
-    sourceFileRef (ZipEntry _ e) = CC.sourceLazy (fromEntry e)
+    recCall e = let fRef = ZipEntry filePath e
+                in childRefs fRef "DAT" (twoFirstDigits fRef)
     extension = T.toUpper (fromMaybe "" (F.extension filePath))
-    toStr = T.unpack . either id id . F.toText
     getCandidato' = getCandidato TryOneAndThreeFieldsName
     getVotos'     = getVotosMunicipio250 TryOneAndThreeFieldsName
     expParse fRef exception = do
-      let msg = case fRef of
-            Path       p -> "reading file " <> toStr p
-            ZipEntry p e -> "reading entry "
-                            <> toStr p
-                            <> "[" <> eRelativePath e <> "]"
-      expWhenParseError msg exception
+      expWhenParseError ("reading file " <> show fRef) exception
       return []
     expWhen' msg exception = do { expWhen msg exception; return [] }
 
@@ -1151,7 +1159,7 @@ sourceDatEntriesFromZipFile
      =>
      F.FilePath -> Producer m Entry
 sourceDatEntriesFromZipFile filePath =
-  CC.sourceFile filePath
+      CC.sourceFile filePath
   $=  CS.conduitDecode
   =$= CC.map getEntries
   =$= CC.concat
@@ -1169,14 +1177,14 @@ askForPersonNameMode
 askForPersonNameMode getFunc =
       CC.filterE (/= 10)        -- filter out spaces
   =$= CS.conduitGet getFunc
-  =$  askUntilUserChooses
+  =$  askForPersonNameModeLoop
 
-askUntilUserChooses
+askForPersonNameModeLoop
   :: forall a m.
      (HasPersonName a, MonadResource m)
      =>
      Consumer a m PersonNameMode
-askUntilUserChooses = do
+askForPersonNameModeLoop = do
   mEntity <- await
   case mEntity of
     Nothing     -> return NoInteractionName
@@ -1192,102 +1200,50 @@ askUntilUserChooses = do
             case line of
               "a" -> return OneFieldName
               "b" -> return ThreeFieldsName
-              "m" -> if isNull then getCharLoop else askUntilUserChooses
+              "m" -> if isNull then getCharLoop else askForPersonNameModeLoop
               _   -> getCharLoop
       getCharLoop
 
--- | Read a .DAT or .zip file and insert its contents into the database. A
--- different DB connection is used for every .DAT file or entry into a .zip
--- file.
-readFileIntoDb
+-- | Read a file from a file path or a zip entry and insert its contents into
+-- the database. A new DB connection is started on every call to this functions,
+-- thus for every file reference.
+readFileRefIntoDb
   :: forall m.
      (MonadIO m, MonadCatch m, MonadBaseControl IO m)
      =>
-     [String] -> ConnectionPool -> F.FilePath -> m ()
-readFileIntoDb grantUsers pool filePath = do
-  isRegularFile <- liftIO $ F.isFile filePath
-  let fileName = (T.unpack . either id id . F.toText) filePath
-  if isRegularFile then runResourceT $
-    case T.toUpper (fromMaybe "" (F.extension filePath)) of
-      "DAT" -> readDatFileIntoDb grantUsers pool filePath
-      "ZIP" -> do entries <- CC.sourceFile filePath $$ consumeZipEntries
-                  mapM_ (readEntryIntoDb grantUsers pool fileName) entries
-                  return ()
-      _     -> liftIO $ putStrLn $
-               "Error: File " ++ fileName ++ " is not a .DAT or .ZIP file"
-    else liftIO $ putStrLn $
-         "Error: File " ++ fileName ++ " doesn't exist or is not readable"
-
--- | Specific function for inserting .DAT file into the database. A new DB
--- connection is open for every file.
-readDatFileIntoDb
-  :: forall m.
-     (MonadIO m, MonadCatch m)
-     =>
-     [String] -> ConnectionPool -> F.FilePath -> m ()
-readDatFileIntoDb grantUsers pool filePath = do
-  let fileName = (T.unpack . either id id . F.toText) filePath
-  let mGetFunc = getAnyPersistEntity filePath
-  case mGetFunc of
+     [String] -> ConnectionPool -> (FileRef, Maybe PersonNameMode) -> m ()
+readFileRefIntoDb grantUsers pool (fRef, mMode) =
+  case getAnyPersistEntity fRef of
     Just anyGetFunc ->
-      handleAll (expWhen $ "inserting rows to " <> fileName) $
-      handle (expWhenParseError $ "reading file " <> fileName) $
+      handleAll (expWhen $ "inserting rows to " <> show fRef) $
+      handle (expWhenParseError $ "reading file " <> show fRef) $
         liftIO $ flip runSqlPersistMPool pool $ do
-          liftIO $ putStrLn $ "Inserting rows from " ++ fileName
-          CC.sourceFile filePath $$ sinkDatContentsToDb anyGetFunc
+          liftIO $ putStrLn $ "Inserting rows from " <> show fRef
+          sourceFileRef fRef $$ sinkDatContentsToDb anyGetFunc mMode
           let tableName' = getTableName anyGetFunc
-          liftIO $ putStrLn $ "Inserted "++ fileName ++" to "++ show tableName'
+          liftIO $ putStrLn $ "Inserted "<> show fRef <>" to "<> show tableName'
           grantAccessAll tableName' grantUsers
     Nothing ->
-      liftIO $ putStrLn $ "Warning: file " ++ fileName ++ " not processed"
-
--- | Specific function for inserting an entry from a .zip file into the
--- database. A new DB connection is open for every entry.
-readEntryIntoDb
-  :: forall m.
-     (MonadIO m, MonadCatch m, MonadBaseControl IO m)
-     =>
-     [String] -> ConnectionPool -> String -> Entry -> m ()
-readEntryIntoDb grantUsers pool zipFileName entry = do
-  let entryPath = eRelativePath entry
-  let entryName = zipFileName ++ "[" ++ entryPath ++ "]"
-  let mGetFunc = getAnyPersistEntity (F.fromText $ T.pack entryPath)
-  case mGetFunc of
-    Just anyGetFunc ->
-      handleAll (expWhen $ "inserting rows to " <> entryName) $
-      handle (expWhenParseError $ "reading file " <> entryName) $
-        liftIO $ flip runSqlPersistMPool pool $ do
-          liftIO $ putStrLn $ "Inserting rows from " ++ entryName
-          CC.sourceLazy (fromEntry entry) $$ sinkDatContentsToDb anyGetFunc
-          let tableName' = getTableName anyGetFunc
-          liftIO $ putStrLn $ "Inserted "++ entryName ++" to "++ show tableName'
-          grantAccessAll tableName' grantUsers
-    Nothing ->
-      liftIO $ putStrLn $ "Warning: file " ++ entryName ++ " not processed"
+      liftIO $ putStrLn $ "Warning: file " <> show fRef <> " not processed"
 
 sinkDatContentsToDb
   :: (MonadIO m, MonadCatch m)
      =>
      AnyPersistEntityGetFunc
+  -> Maybe PersonNameMode
   -> Consumer BS8.ByteString (ReaderT SqlBackend m) ()
-sinkDatContentsToDb (MkAPEGF getFunc) =
+sinkDatContentsToDb (MkAPEGF getFunc) _mode =
       CC.filterE (/= 10)            -- filter out spaces
   =$= CS.conduitGet getFunc
   =$= CL.sequence (CL.take 1000)    -- bulk insert in chunks of size 1000
   =$  CC.mapM_ insertMany_
--- TODO sinkDatContentsToDb (MkAPEGF' getFunc)
-
-consumeZipEntries :: (MonadCatch m) => Consumer BS8.ByteString m [Entry]
-consumeZipEntries =
-      CS.conduitDecode
-  =$= CC.map getEntries
-  =$= CC.concat
-  =$= CC.filter hasDatExt
-  =$  CL.consume
-  where
-    getEntries ar = catMaybes $ fmap (`findEntryByPath` ar) (filesInArchive ar)
-    hasDatExt en = T.toUpper (fromMaybe "" (F.extension (entryPath en))) == "DAT"
-    entryPath = F.fromText . T.pack . eRelativePath
+sinkDatContentsToDb (MkAPEGF' getFunc) (Just mode) =
+      CC.filterE (/= 10)            -- filter out spaces
+  =$= CS.conduitGet (getFunc mode)
+  =$= CL.sequence (CL.take 1000)    -- bulk insert in chunks of size 1000
+  =$  CC.mapM_ insertMany_
+sinkDatContentsToDb (MkAPEGF' _) Nothing =
+  error "sinkDatContentsToDb: no PersonNameMode specified"
 
 getTableName :: AnyPersistEntityGetFunc -> Text
 getTableName = getTableName'
