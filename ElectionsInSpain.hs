@@ -1069,7 +1069,7 @@ main = execParser options' >>= \(Options d u p g migrFlag filePaths) ->
 
     -- Insertion of dynamic data
     liftIO $ putStrLn "Inserting dynamic data"
-    mapM_ (readFileRefIntoDb g pool) fileRefs
+    _ <- mapConcurrently (readFileRefIntoDb g pool) fileRefs
     return ()
 
   where
