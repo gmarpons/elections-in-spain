@@ -1026,14 +1026,23 @@ options = Options
     <> help "Comma-separated list of DB users to grant access privileges to"
     <> value []
   )
-  <*> flag Migrate Don'tMigrate
-  ( long "NoMigration"
-    <> help "Disable DB migration and static data insertion"
-  )
+  <*> flagMigrate
   <*> some (argument (fromString <$> str) (metavar "FILES..."))
   where
     param _ "" = return ""
     param p s  = return $ p ++ "=" ++ s ++ " "
+    flagMigrate = caseMigrate
+                  <$> flag Migrate Don'tMigrate
+                  ( long "no-migration"
+                    <> help "Disable DB migration and static data insertion"
+                  )
+                  <*> flag Migrate Migrate
+                  ( long "migration"
+                    <> help "Enable DB migration and static data insertion (default)"
+                  )
+    caseMigrate Migrate _       = Migrate
+    caseMigrate _       Migrate = Migrate
+    caseMigrate _       _       = Don'tMigrate
 
 helpMessage :: InfoMod a
 helpMessage =
