@@ -986,6 +986,8 @@ getText n = T.stripEnd . T.pack . BS8.unpack <$> getByteString n
 
 data MigrateFlag = Migrate | Don'tMigrate
 
+data InteractiveFlag = Interactive | NoInteractive
+
 data Options
   = Options
     { dbname               :: String
@@ -993,6 +995,7 @@ data Options
     , password             :: String
     , usersToGrantAccessTo :: [String]
     , migrateFlag          :: MigrateFlag
+    , interactiveFlag      :: InteractiveFlag
     , files                :: [F.FilePath]
     }
 
@@ -1027,28 +1030,43 @@ options = Options
     <> value []
   )
   <*> flagMigrate
+  <*> flagInteractive
   <*> some (argument (fromString <$> str) (metavar "FILES..."))
   where
     param _ "" = return ""
     param p s  = return $ p ++ "=" ++ s ++ " "
-    flagMigrate = caseMigrate
-                  <$> flag Migrate Don'tMigrate
-                  ( long "no-migration"
-                    <> help "Disable DB migration and static data insertion"
-                  )
-                  <*> flag Migrate Migrate
-                  ( long "migration"
-                    <> help "Enable DB migration and static data insertion (default)"
-                  )
-    caseMigrate Migrate _       = Migrate
-    caseMigrate _       Migrate = Migrate
-    caseMigrate _       _       = Don'tMigrate
+    flagMigrate =
+      caseMigrate
+      <$> flag (Just Migrate) (Just Don'tMigrate)
+      ( long "no-migration"
+        <> help "Disable DB migration and static data insertion"
+      )
+      <*> flag Nothing (Just Migrate)
+      ( long "migration"
+        <> help "Enable DB migration and static data insertion (default)"
+      )
+    caseMigrate (Just Migrate) _              = Migrate
+    caseMigrate _              (Just Migrate) = Migrate
+    caseMigrate _              _              = Don'tMigrate
+    flagInteractive =
+      caseInteractive
+      <$> flag (Just Interactive) (Just NoInteractive)
+      ( long "no-interactive"
+        <> help "Disable interaction to choose person name format"
+      )
+      <*> flag Nothing (Just Interactive)
+      ( long "interactive"
+        <> help "Enable interaction to choose person name format (default)"
+      )
+    caseInteractive (Just Interactive) _                  = Interactive
+    caseInteractive _                  (Just Interactive) = Interactive
+    caseInteractive _                  _                  = NoInteractive
 
 helpMessage :: InfoMod a
 helpMessage =
   fullDesc
   <> progDesc "Connect to database and do things"
-  <> header "elections-in-spain - Relational-ize .DAT files\
+  <> header "Relational-ize .DAT files\
             \ from www.infoelectoral.interior.es"
 
 
@@ -1058,7 +1076,7 @@ helpMessage =
 -- | Entry point. All SQL commands related to a file are run in a single
 -- connection/transaction.
 main :: IO ()
-main = execParser options' >>= \(Options d u p g migrFlag filePaths) ->
+main = execParser options' >>= \(Options d u p g migrFlag interFlag filePaths) ->
   runNoLoggingT $ withPostgresqlPool (pgConnOpts d u p) 100 $ \pool -> do
 
     -- Migration and insertion of static data
@@ -1073,7 +1091,7 @@ main = execParser options' >>= \(Options d u p g migrFlag filePaths) ->
         liftIO $ putStrLn "Skipping static data insertion"
 
     -- Ask for person name syntax
-    fileRefsL <- mapM toFileRefsWithPersonNameMode filePaths
+    fileRefsL <- mapM (toFileRefsWithPersonNameMode interFlag) filePaths
     let fileRefs = concat fileRefsL
 
     -- Insertion of dynamic data
@@ -1125,8 +1143,8 @@ toFileRefsWithPersonNameMode
   :: forall m.
      (MonadIO m, MonadCatch m, MonadBaseControl IO m)
      =>
-     F.FilePath -> m [(FileRef, Maybe PersonNameMode)]
-toFileRefsWithPersonNameMode filePath = do
+     InteractiveFlag -> F.FilePath -> m [(FileRef, Maybe PersonNameMode)]
+toFileRefsWithPersonNameMode interFlag filePath = do
   isRegularFile <- liftIO $ F.isFile filePath
   if isRegularFile then runResourceT $
     handleAll (expWhen' $ "reading file " <> show filePath) $
@@ -1136,13 +1154,21 @@ toFileRefsWithPersonNameMode filePath = do
             return []
   where
     childRefs fRef "DAT" "04" = handle (expParse fRef) $
-                                do m <-    sourceFileRef fRef
-                                        $$ askForPersonNameMode getCandidato'
-                                   return [(fRef, Just m)]
+                                case interFlag of
+                                  Interactive -> do
+                                    m <-    sourceFileRef fRef
+                                         $$ askForPersonNameMode getCandidato'
+                                    return [(fRef, Just m)]
+                                  NoInteractive ->
+                                    return [(fRef, Just NoInteractionName)]
     childRefs fRef "DAT" "12" = handle (expParse fRef) $
-                                do m <-    sourceFileRef fRef
-                                        $$ askForPersonNameMode getVotos'
-                                   return [(fRef, Just m)]
+                                case interFlag of
+                                  Interactive -> do
+                                    m <-    sourceFileRef fRef
+                                         $$ askForPersonNameMode getVotos'
+                                    return [(fRef, Just m)]
+                                  NoInteractive ->
+                                    return [(fRef, Just NoInteractionName)]
     childRefs fRef "DAT" _    = return [(fRef, Nothing)]
     childRefs _    "ZIP" _    =     sourceDatEntriesFromZipFile filePath
                                 $=  CC.mapM recCall
