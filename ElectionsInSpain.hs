@@ -146,6 +146,7 @@ share
       nombrePila                             Text Maybe sqltype=varchar(25)
       primerApellido                         Text Maybe sqltype=varchar(25)
       segundoApellido                        Text Maybe sqltype=varchar(25)
+      independiente                          String sqltype=varchar(1)
       sexo                                   String sqltype=varchar(1)
       fechaNacimiento                        Day Maybe
       dni                                    Text Maybe sqltype=varchar(10)
@@ -206,6 +207,7 @@ share
       nombrePila                             Text Maybe sqltype=varchar(25)
       primerApellido                         Text Maybe sqltype=varchar(25)
       segundoApellido                        Text Maybe sqltype=varchar(25)
+      independiente                          String Maybe sqltype=varchar(1)
       -- The 5 that follow: Nothing if > 250 (fechaNacimiento and dni can also
       -- be Noting in some < 250)
       tipoMunicipio                          String Maybe sqltype=varchar(2)
@@ -456,7 +458,7 @@ getCandidatura =
 
 getCandidato :: PersonNameMode -> Get Candidatos
 getCandidato mode =
-  (\ctor (nc, np, a1, a2) (s, f, mD, e) -> ctor nc np a1 a2 s f mD e)
+  (\ctor (nc, np, a1, a2, i) (s, f, mD, e) -> ctor nc np a1 a2 i s f mD e)
   <$> getCandidato'
   <*> getNombreCandidato mode
   <*> getCandidato''
@@ -529,6 +531,7 @@ getVotosMunicipio =
   <*> (snd <$> getVotos 8)
   <*> (snd <$> getNumeroCandidatos 3)
   <*> pure ""
+  <*> pure Nothing
   <*> pure Nothing
   <*> pure Nothing
   <*> pure Nothing
@@ -664,8 +667,8 @@ getDatosMunicipio250 =
 
 getVotosMunicipio250 :: PersonNameMode -> Get VotosMunicipios
 getVotosMunicipio250 mode =
-  (\tm ctor (nc, np, a1, a2) (s, mF) (mD, vc, e) ->
-    ctor nc np a1 a2 (Just tm) (Just s) mF mD (Just vc) (Just e))
+  (\tm ctor (nc, np, a1, a2, i) (s, mF) (mD, vc, e) ->
+    ctor nc np a1 a2 (Just i) (Just tm) (Just s) mF mD (Just vc) (Just e))
   <$> getTipoMunicipio
   <*> getVotosMunicipios'
   <*> getNombreCandidato mode
@@ -898,32 +901,39 @@ instance HasPersonName VotosMunicipios where
 -- bytes. Then, we will concat the pieces without the necessary white-space.
 --
 -- The option 'TryOneAndThreeFieldsName' is used to get both the results of the
--- first two options, to possibly show the results to the user and let her chose
+-- first two options, possibly to show the results to the user and let her chose
 -- between them.
 getNombreCandidato
-  :: PersonNameMode -> Get (Text, Maybe Text, Maybe Text, Maybe Text)
+  :: PersonNameMode -> Get (Text, Maybe Text, Maybe Text, Maybe Text, String)
 getNombreCandidato OneFieldName =
-  (\t -> (t, Nothing, Nothing, Nothing))
-  <$> (T.stripEnd . T.pack . BS8.unpack)
+  (\(i, nc) -> (nc, Nothing, Nothing, Nothing, i))
+  <$> (splitIndFlag . T.stripEnd . T.pack . BS8.unpack)
   <$> getByteString 75
 getNombreCandidato ThreeFieldsName =
-  (\np a1 a2 -> (np <> " " <> a1 <> " " <> a2, Just np, Just a1, Just a2))
+  (\np a1 (i, a2) -> (np <> " " <> a1 <> " " <> a2, Just np, Just a1, Just a2, i))
   <$> ((T.stripEnd . T.pack . BS8.unpack) <$> getByteString 25)
   <*> ((T.stripEnd . T.pack . BS8.unpack) <$> getByteString 25)
-  <*> ((T.stripEnd . T.pack . BS8.unpack) <$> getByteString 25)
+  <*> ((splitIndFlag . T.stripEnd . T.pack . BS8.unpack) <$> getByteString 25)
 getNombreCandidato NoInteractionName =
-  (\nc -> (nc, Nothing, Nothing, Nothing))
-  <$> (T.unwords . T.words . T.pack . BS8.unpack) -- Remove redundant whitespace
+  (\(i, nc) -> (nc, Nothing, Nothing, Nothing, i))
+  <$> (splitIndFlag . T.unwords . T.words . T.pack . BS8.unpack) -- rm rdnt. ws
   <$> getByteString 75
 getNombreCandidato TryOneAndThreeFieldsName =
-  (\np a1 a2 -> ( T.stripEnd (np <> a1 <> a2)
-                , Just (T.stripEnd np)
-                , Just (T.stripEnd a1)
-                , Just (T.stripEnd a2) )
+  (\np a1 (i, a2) -> ( T.stripEnd (np <> a1 <> a2)
+                      , Just (T.stripEnd np)
+                      , Just (T.stripEnd a1)
+                      , Just (T.stripEnd a2)
+                      , i )
   )
   <$> ((T.pack . BS8.unpack) <$> getByteString 25)
   <*> ((T.pack . BS8.unpack) <$> getByteString 25)
-  <*> ((T.pack . BS8.unpack) <$> getByteString 25)
+  <*> ((splitIndFlag . T.pack . BS8.unpack) <$> getByteString 25)
+
+splitIndFlag :: Text -> (String, Text)
+splitIndFlag t = if upEnd == "(IND)" then ("S", T.stripEnd begin) else ("N", t)
+  where
+    (begin, end) = T.splitAt (T.length t - 5) t
+    upEnd = T.toUpper end
 
 getNombre :: Get Text
 getNombre = getText 25
@@ -984,7 +994,7 @@ getText n = T.stripEnd . T.pack . BS8.unpack <$> getByteString n
 -- |
 -- = Command line options
 
-data MigrateFlag = Migrate | Don'tMigrate
+data MigrateFlag = Migrate | DonTMigrate
 
 data InteractiveFlag = Interactive | NoInteractive
 
@@ -1037,7 +1047,7 @@ options = Options
     param p s  = return $ p ++ "=" ++ s ++ " "
     flagMigrate =
       caseMigrate
-      <$> flag (Just Migrate) (Just Don'tMigrate)
+      <$> flag (Just Migrate) (Just DonTMigrate)
       ( long "no-migration"
         <> help "Disable DB migration and static data insertion"
       )
@@ -1047,7 +1057,7 @@ options = Options
       )
     caseMigrate (Just Migrate) _              = Migrate
     caseMigrate _              (Just Migrate) = Migrate
-    caseMigrate _              _              = Don'tMigrate
+    caseMigrate _              _              = DonTMigrate
     flagInteractive =
       caseInteractive
       <$> flag (Just Interactive) (Just NoInteractive)
@@ -1086,7 +1096,7 @@ main = execParser options' >>= \(Options d u p g migrFlag interFlag filePaths) -
         runMigration migrateAll
         liftIO $ putStrLn "Inserting static data"
         insertStaticDataIntoDb
-      Don'tMigrate -> do
+      DonTMigrate -> do
         liftIO $ putStrLn "Skipping database migration"
         liftIO $ putStrLn "Skipping static data insertion"
 
