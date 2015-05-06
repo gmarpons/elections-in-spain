@@ -1278,12 +1278,12 @@ sinkDatContentsToDb
   -> Maybe PersonNameMode
   -> Consumer BS8.ByteString (ReaderT SqlBackend m) ()
 sinkDatContentsToDb (MkAPEGF getFunc) _mode =
-      CC.filterE (/= 10)            -- filter out spaces
+      CC.filterE (`notElem` [10, 13]) -- filter out newline chars
   =$= CS.conduitGet getFunc
   =$= CL.sequence (CL.take 1000)    -- bulk insert in chunks of size 1000
   =$  CC.mapM_ insertMany_
 sinkDatContentsToDb (MkAPEGF' getFunc) (Just mode) =
-      CC.filterE (/= 10)            -- filter out spaces
+      CC.filterE (`notElem` [10, 13]) -- filter out newline chars
   =$= CS.conduitGet (getFunc mode)
   =$= CL.sequence (CL.take 1000)    -- bulk insert in chunks of size 1000
   =$  CC.mapM_ insertMany_
