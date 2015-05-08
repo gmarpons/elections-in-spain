@@ -37,6 +37,7 @@ executable elections-in-spain
                , monad-control >= 0.3.3.0
                , monad-logger >= 0.3.11.1
                , optparse-applicative
+               , parallel-io >= 0.3.3
                , persistent
                , persistent-postgresql
                , persistent-template

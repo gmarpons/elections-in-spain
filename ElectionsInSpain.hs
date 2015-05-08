@@ -30,7 +30,8 @@ module Main where
 
 import           Codec.Archive.Zip
 import           Control.Applicative
-import           Control.Concurrent.Async.Lifted
+import           Control.Concurrent
+import           Control.Concurrent.ParallelIO.Local
 import           Control.Monad
 import           Control.Monad.Catch
 import           Control.Monad.IO.Class            (MonadIO, liftIO)
@@ -1087,11 +1088,11 @@ helpMessage =
 -- connection/transaction.
 main :: IO ()
 main = execParser options' >>= \(Options d u p g migrFlag interFlag filePaths) ->
-  runNoLoggingT $ withPostgresqlPool (pgConnOpts d u p) 100 $ \pool -> do
+  runNoLoggingT $ withPostgresqlPool (pgConnOpts d u p) poolSize $ \dbPool -> do
 
     -- Migration and insertion of static data
     case migrFlag of
-      Migrate -> liftIO $ flip runSqlPersistMPool pool $ do
+      Migrate -> liftIO $ flip runSqlPersistMPool dbPool $ do
         liftIO $ putStrLn "Migrating database"
         runMigration migrateAll
         liftIO $ putStrLn "Inserting static data"
@@ -1106,12 +1107,14 @@ main = execParser options' >>= \(Options d u p g migrFlag interFlag filePaths) -
 
     -- Insertion of dynamic data
     liftIO $ putStrLn "Inserting dynamic data"
-    _ <- mapConcurrently (readFileRefIntoDb g pool) fileRefs
-    return ()
+    nCapabilities <- liftIO getNumCapabilities
+    liftIO $ withPool (nCapabilities * 2) $ \ioPool ->
+      parallel_ ioPool [readFileRefIntoDb g dbPool fileRef | fileRef <- fileRefs]
 
   where
     options' = info (helper <*> options) helpMessage
     pgConnOpts d u p = BS8.pack $ concat [d, u, p]
+    poolSize = 80             -- PG's max_connections = 100 by default in Debian
 
 data PersonNameMode
   = OneFieldName
