@@ -1001,9 +1001,7 @@ data InteractiveFlag = Interactive | NoInteractive
 
 data Options
   = Options
-    { dbname               :: String
-    , user                 :: String
-    , password             :: String
+    { dbConnOpts           :: BS8.ByteString
     , usersToGrantAccessTo :: [String]
     , migrateFlag          :: MigrateFlag
     , interactiveFlag      :: InteractiveFlag
@@ -1012,40 +1010,18 @@ data Options
 
 options :: Parser Options
 options = Options
-  <$> option (str >>= param "dbname")
-  ( long "dbname"
-    <> short 'd'
-    <> metavar "DB"
-    <> help "Passes parameter dbname=DB to database connection"
-    <> value ""
-  )
-  <*> option (str >>= param "user")
-  ( long "username"
-    <> short 'u'
-    <> metavar "USER"
-    <> help "Passes parameter user=USER to database connection"
-    <> value ""
-  )
-  <*> option (str >>= param "password")
-  ( long "password"
-    <> short 'p'
-    <> metavar "PASSWD"
-    <> help "Passes param. password=PASSWD to database connection"
-    <> value ""
-  )
+  <$> dbConnOptions
   <*> option ((fmap T.unpack . T.splitOn "," . T.pack) <$> str)
   ( long "grant-access-to"
     <> short 'g'
     <> metavar "USERS"
-    <> help "Comma-separated list of DB users to grant access privileges to"
+    <> help "Comma-separated list of DB users to grant reading access privileges to"
     <> value []
   )
   <*> flagMigrate
   <*> flagInteractive
   <*> some (argument (fromString <$> str) (metavar "FILES..."))
   where
-    param _ "" = return ""
-    param p s  = return $ p ++ "=" ++ s ++ " "
     flagMigrate =
       caseMigrate
       <$> flag (Just Migrate) (Just DonTMigrate)
@@ -1073,6 +1049,48 @@ options = Options
     caseInteractive _                  (Just Interactive) = Interactive
     caseInteractive _                  _                  = NoInteractive
 
+dbConnOptions :: Parser BS8.ByteString
+dbConnOptions =
+  (\h p d u pwd -> BS8.pack $ concat [h, p, d, u, pwd])
+  <$> option (str >>= param "host")
+  ( long "host"
+    <> short 'H'
+    <> metavar "HOSTNAME"
+    <> help "Passes parameter host=HOSTNAME to database connection"
+    <> value "localhost"
+  )
+  <*> option (str >>= param "port")
+  ( long "port"
+    <> short 'p'
+    <> metavar "PORT"
+    <> help "Passes parameter port=PORT to database connection"
+    <> value "5432"
+  )
+  <*> option (str >>= param "dbname")
+  ( long "dbname"
+    <> short 'd'
+    <> metavar "DB"
+    <> help "Passes parameter dbname=DB to database connection"
+    <> value ""
+  )
+  <*> option (str >>= param "user")
+  ( long "username"
+    <> short 'u'
+    <> metavar "USER"
+    <> help "Passes parameter user=USER to database connection"
+    <> value ""
+  )
+  <*> option (str >>= param "password")
+  ( long "password"
+    <> short 'P'
+    <> metavar "PASSWD"
+    <> help "Passes param. password=PASSWD to database connection"
+    <> value ""
+  )
+  where
+    param _ "" = return ""
+    param p s  = return $ p ++ "=" ++ s ++ " "
+
 helpMessage :: InfoMod a
 helpMessage =
   fullDesc
@@ -1087,8 +1105,8 @@ helpMessage =
 -- | Entry point. All SQL commands related to a file are run in a single
 -- connection/transaction.
 main :: IO ()
-main = execParser options' >>= \(Options d u p g migrFlag interFlag filePaths) ->
-  runNoLoggingT $ withPostgresqlPool (pgConnOpts d u p) poolSize $ \dbPool -> do
+main = execParser options' >>= \(Options c g migrFlag interFlag filePaths) ->
+  runNoLoggingT $ withPostgresqlPool c poolSize $ \dbPool -> do
 
     -- Migration and insertion of static data
     case migrFlag of
@@ -1113,7 +1131,6 @@ main = execParser options' >>= \(Options d u p g migrFlag interFlag filePaths) -
 
   where
     options' = info (helper <*> options) helpMessage
-    pgConnOpts d u p = BS8.pack $ concat [d, u, p]
     poolSize = 80             -- PG's max_connections = 100 by default in Debian
 
 data PersonNameMode
@@ -1270,7 +1287,7 @@ readFileRefIntoDb grantUsers pool (fRef, mMode) =
           sourceFileRef fRef $$ sinkDatContentsToDb anyGetFunc mMode
           let tableName' = getTableName anyGetFunc
           liftIO $ putStrLn $ "Inserted "<> show fRef <>" to "<> show tableName'
-          grantAccessAll tableName' grantUsers
+          grantReadAccessAll tableName' grantUsers
     Nothing ->
       liftIO $ putStrLn $ "Warning: file " <> show fRef <> " not processed"
 
@@ -1309,23 +1326,23 @@ getTableName = getTableName'
     -- empty lists
     getTableName'' _getFunc = T.filter (/='"') $ tableName (head ([] :: [a]))
 
-grantAccessAll
+grantReadAccessAll
   :: forall m.
      (MonadIO m, MonadCatch m)
      =>
      Text -> [String] -> ReaderT SqlBackend m ()
-grantAccessAll tableName' grantUsers =
+grantReadAccessAll tableName' grantUsers =
   forM_ grantUsers $ \user' ->
     handleAll (expWhen ("granting access privileges for user " ++ user')) $
-      grantAccess tableName' user'
+      grantReadAccess tableName' user'
 
--- | Grant access to 'table' for database user 'dbUser' using a raw PostgreSQL
--- query.
-grantAccess
+-- | Grant reading access to 'table' for database user 'dbUser' using a raw
+-- PostgreSQL query.
+grantReadAccess
   :: forall m. MonadIO m
      =>
      Text -> String -> ReaderT SqlBackend m ()
-grantAccess table dbUser
+grantReadAccess table dbUser
   = rawExecute ("GRANT SELECT ON " <> table <> " TO " <> T.pack dbUser) []
 
 expWhen :: MonadIO m => String -> SomeException -> m ()
