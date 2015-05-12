@@ -71,16 +71,16 @@ share
   , mkMigrate "migrateAll"
   ]
   [persistLowerCase|
-    TiposDeFichero
-      codigoTipoFichero                      Int
-      tipoFichero                            Text
-      Primary codigoTipoFichero
+    TiposFichero
+      tipoFichero                            Int
+      descrTipoFichero                       Text
+      Primary tipoFichero
       deriving Show
 
-    TiposDeProcesoElectoral
-      codigoTipoProcesoElectoral             Int
-      tipoProcesoElectoral                   Text
-      Primary codigoTipoProcesoElectoral
+    TiposEleccion
+      tipoEleccion                           Int
+      descrTipoEleccion                      Text
+      Primary tipoEleccion
       deriving Show
 
     ComunidadesAutonomas
@@ -90,12 +90,13 @@ share
       deriving Show
 
     DistritosElectorales
-      codigoTipoProcesoElectoral             Int
+      tipoEleccion                           Int
       codigoProvincia                        Int
       codigoDistritoElectoral                Int
-      provincia                              Text
-      distritoElectoral                      Text
-      Primary codigoTipoProcesoElectoral codigoProvincia codigoDistritoElectoral
+      provincia                              Text -- Idx
+      distritoElectoral                      Text -- Idx
+      Primary tipoEleccion codigoProvincia codigoDistritoElectoral
+      Foreign TiposEleccion fkey tipoEleccion
       deriving Show
 
     -- No extra indexes for DistritosElectorales: this table is not expected to
@@ -117,6 +118,7 @@ share
       horaPrimerAvanceParticipacion          TimeOfDay
       horaSegundoAvanceParticipacion         TimeOfDay
       Primary tipoEleccion ano mes vuelta tipoAmbito ambito
+      Foreign TiposEleccion fkey tipoEleccion
       deriving Show
 
     Candidaturas                -- 03xxaamm.DAT
@@ -124,12 +126,13 @@ share
       ano                                    Int
       mes                                    Int
       codigoCandidatura                      Int
-      siglas                                 Text sqltype=varchar(50)
-      denominacion                           Text sqltype=varchar(150)
+      siglas                                 Text sqltype=varchar(50)  -- Idx
+      denominacion                           Text sqltype=varchar(150) -- Idx
       codigoCandidaturaProvincial            Int
       codigoCandidaturaAutonomico            Int
       codigoCandidaturaNacional              Int
       Primary tipoEleccion ano mes codigoCandidatura
+      Foreign TiposEleccion fkey tipoEleccion
       deriving Show
 
     Candidatos                  -- 04xxaamm.DAT
@@ -143,16 +146,17 @@ share
       codigoCandidatura                      Int
       numeroOrden                            Int
       tipoCandidato                          String sqltype=varchar(1)
-      nombreCandidato                        Text sqltype=varchar(75)
-      nombrePila                             Text Maybe sqltype=varchar(25)
-      primerApellido                         Text Maybe sqltype=varchar(25)
-      segundoApellido                        Text Maybe sqltype=varchar(25)
+      nombreCandidato                        Text sqltype=varchar(75) -- Idx
+      nombrePila                             Text Maybe sqltype=varchar(25) -- Idx
+      primerApellido                         Text Maybe sqltype=varchar(25) -- Idx
+      segundoApellido                        Text Maybe sqltype=varchar(25) -- Idx
       independiente                          String sqltype=varchar(1)
       sexo                                   String sqltype=varchar(1)
       fechaNacimiento                        Day Maybe
-      dni                                    Text Maybe sqltype=varchar(10)
+      dni                                    Text Maybe sqltype=varchar(10) -- Idx
       elegido                                String sqltype=varchar(1)
       Primary tipoEleccion ano mes vuelta codigoProvincia codigoDistritoElectoral codigoMunicipio codigoCandidatura numeroOrden
+      Foreign TiposEleccion fkey tipoEleccion
       deriving Show
 
     DatosMunicipios             -- 05xxaamm.DAT and 1104aamm.DAT
@@ -166,7 +170,7 @@ share
       codigoMunicipio                        Int
       distritoMunicipal                      Int       -- 99 if < 250
       -- Called 'nombreMunicipio' in < 250
-      nombreMunicipioODistrito               Text sqltype=varchar(100)
+      nombreMunicipioODistrito               Text sqltype=varchar(100) -- Idx
       codigoDistritoElectoral                Int Maybe -- Nothing if < 250
       codigoPartidoJudicial                  Int
       codigoDiputacionProvincial             Int
@@ -189,6 +193,7 @@ share
       -- The following field must be Nothing if > 250
       tipoMunicipio                          String Maybe sqltype=varchar(2)
       Primary tipoEleccion ano mes vueltaOPregunta codigoProvincia codigoMunicipio distritoMunicipal
+      Foreign TiposEleccion fkey tipoEleccion
       deriving Show
 
     VotosMunicipios             -- 06xxaamm.DAT and 1204aamm.DAT
@@ -204,20 +209,21 @@ share
       votosCandidatura                       Int
       numeroCandidatos                       Int
       -- The following field must be "" if > 250
-      nombreCandidato                        Text sqltype=varchar(75)
-      nombrePila                             Text Maybe sqltype=varchar(25)
-      primerApellido                         Text Maybe sqltype=varchar(25)
-      segundoApellido                        Text Maybe sqltype=varchar(25)
+      nombreCandidato                        Text sqltype=varchar(75) -- Idx
+      nombrePila                             Text Maybe sqltype=varchar(25) -- Idx
+      primerApellido                         Text Maybe sqltype=varchar(25) -- Idx
+      segundoApellido                        Text Maybe sqltype=varchar(25) -- Idx
       independiente                          String Maybe sqltype=varchar(1)
       -- The 5 that follow: Nothing if > 250 (fechaNacimiento and dni can also
       -- be Noting in some < 250)
       tipoMunicipio                          String Maybe sqltype=varchar(2)
       sexo                                   String Maybe sqltype=varchar(1)
       fechaNacimiento                        Day    Maybe
-      dni                                    Text   Maybe sqltype=varchar(10)
+      dni                                    Text   Maybe sqltype=varchar(10) -- Idx
       votosCandidato                         Int    Maybe
       elegido                                String Maybe sqltype=varchar(1)
       Primary tipoEleccion ano mes vuelta codigoProvincia codigoMunicipio distritoMunicipal codigoCandidatura nombreCandidato
+      Foreign TiposEleccion fkey tipoEleccion
       deriving Show
 
     DatosAmbitoSuperior         -- 07xxaamm.DAT
@@ -244,9 +250,10 @@ share
       votosAfirmativos                       Int
       votosNegativos                         Int
       datosOficiales                         String sqltype=varchar(1)
-      -- codigoProvincia necessary in PKey because totals per Comunidad have
+      -- codigoComunidad necessary in PKey because totals CERA by Comunidad have
       -- codigoProvincia = 99.
       Primary tipoEleccion ano mes vueltaOPregunta codigoComunidad codigoProvincia codigoDistritoElectoral
+      Foreign TiposEleccion fkey tipoEleccion
       deriving Show
 
     VotosAmbitoSuperior         -- 08xxaamm.DAT
@@ -260,9 +267,10 @@ share
       codigoCandidatura                      Int
       votos                                  Int
       numeroCandidatos                       Int
-      -- codigoProvincia necessary in PKey because totals per Comunidad have
+      -- codigoComunidad necessary in PKey because totals CERA by Comunidad have
       -- codigoProvincia = 99.
       Primary tipoEleccion ano mes vuelta codigoComunidad codigoProvincia codigoDistritoElectoral codigoCandidatura
+      Foreign TiposEleccion fkey tipoEleccion
       deriving Show
 
     DatosMesas                  -- 09xxaamm.DAT
@@ -288,9 +296,10 @@ share
       votosAfirmativos                       Int
       votosNegativos                         Int
       datosOficiales                         String sqltype=varchar(1)
-      -- codigoProvincia necessary in PKey because totals per Comunidad have
+      -- codigoComunidad necessary in PKey because totals CERA by Comunidad have
       -- codigoProvincia = 99.
       Primary tipoEleccion ano mes vueltaOPregunta codigoComunidad codigoProvincia codigoMunicipio distritoMunicipal codigoSeccion codigoMesa
+      Foreign TiposEleccion fkey tipoEleccion
       deriving Show
 
     VotosMesas                  -- 10xxaamm.DAT
@@ -306,9 +315,10 @@ share
       codigoMesa                             String sqltype=varchar(1)
       codigoCandidatura                      Int
       votos                                  Int
-      -- codigoProvincia necessary in PKey because totals per Comunidad have
-      -- codigoProvincia = 99.
+      -- codigoComunidad necessary in PKey because totals CERA by Comunidad
+      -- have codigoProvincia = 99.
       Primary tipoEleccion ano mes vuelta codigoComunidad codigoProvincia codigoMunicipio distritoMunicipal codigoSeccion codigoMesa codigoCandidatura
+      Foreign TiposEleccion fkey tipoEleccion
       deriving Show
   |]
 
@@ -322,32 +332,32 @@ insertStaticDataIntoDb :: (MonadResource m, MonadIO m, MonadCatch m)
 insertStaticDataIntoDb =
   handleAll (expWhen "inserting rows") $ do
     -- Reinsert all (after delete) on every execution
-    deleteWhere ([] :: [Filter TiposDeFichero])
+    deleteWhere ([] :: [Filter TiposFichero])
     mapM_ insert_
-      [ TiposDeFichero  1 "Control."
-      , TiposDeFichero  2 "Identificación del proceso electoral."
-      , TiposDeFichero  3 "Candidaturas."
-      , TiposDeFichero  4 "Candidatos."
-      , TiposDeFichero  5 "Datos globales de ámbito municipal."
-      , TiposDeFichero  6 "Datos de candidaturas de ámbito municipal."
-      , TiposDeFichero  7 "Datos globales de ámbito superior al municipio."
-      , TiposDeFichero  8 "Datos de candidaturas de ámbito superior al municipio."
-      , TiposDeFichero  9 "Datos globales de mesas."
-      , TiposDeFichero 10 "Datos de candidaturas de mesas."
-      , TiposDeFichero 11 "Datos globales de municipios menores de 250 habitantes (en  elecciones municipales)."
-      , TiposDeFichero 12 "Datos de candidaturas de municipios menores de 250 habitantes (en elecciones municipales)."
+      [ TiposFichero  1 "Control."
+      , TiposFichero  2 "Identificación del proceso electoral."
+      , TiposFichero  3 "Candidaturas."
+      , TiposFichero  4 "Candidatos."
+      , TiposFichero  5 "Datos globales de ámbito municipal."
+      , TiposFichero  6 "Datos de candidaturas de ámbito municipal."
+      , TiposFichero  7 "Datos globales de ámbito superior al municipio."
+      , TiposFichero  8 "Datos de candidaturas de ámbito superior al municipio."
+      , TiposFichero  9 "Datos globales de mesas."
+      , TiposFichero 10 "Datos de candidaturas de mesas."
+      , TiposFichero 11 "Datos globales de municipios menores de 250 habitantes (en  elecciones municipales)."
+      , TiposFichero 12 "Datos de candidaturas de municipios menores de 250 habitantes (en elecciones municipales)."
       ]
-    deleteWhere ([] :: [Filter TiposDeProcesoElectoral])
+    deleteWhere ([] :: [Filter TiposEleccion])
     mapM_ insert_
-      [ TiposDeProcesoElectoral  1 "Referéndum."
-      , TiposDeProcesoElectoral  2 "Elecciones al Congreso de los Diputados."
-      , TiposDeProcesoElectoral  3 "Elecciones al Senado."
-      , TiposDeProcesoElectoral  4 "Elecciones Municipales."
-      , TiposDeProcesoElectoral  5 "Elecciones Autonómicas."
-      , TiposDeProcesoElectoral  6 "Elecciones a Cabildos Insulares."
-      , TiposDeProcesoElectoral  7 "Elecciones al Parlamento Europeo."
-      , TiposDeProcesoElectoral 10 "Elecciones a Partidos Judiciales y Diputaciones Provinciales."
-      , TiposDeProcesoElectoral 15 "Elecciones a Juntas Generales."
+      [ TiposEleccion  1 "Referéndum."
+      , TiposEleccion  2 "Elecciones al Congreso de los Diputados."
+      , TiposEleccion  3 "Elecciones al Senado."
+      , TiposEleccion  4 "Elecciones Municipales."
+      , TiposEleccion  5 "Elecciones Autonómicas."
+      , TiposEleccion  6 "Elecciones a Cabildos Insulares."
+      , TiposEleccion  7 "Elecciones al Parlamento Europeo."
+      , TiposEleccion 10 "Elecciones a Partidos Judiciales y Diputaciones Provinciales."
+      , TiposEleccion 15 "Elecciones a Juntas Generales."
       ]
     deleteWhere ([] :: [Filter ComunidadesAutonomas])
     mapM_ insert_
