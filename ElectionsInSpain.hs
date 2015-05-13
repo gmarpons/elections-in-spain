@@ -62,6 +62,9 @@ import           Options.Applicative
 
 -- |
 -- = DB schema definition
+--
+-- See doc/FICHEROS.txt. For definitions of CERA and CERE see
+-- http://www.ine.es/ss/Satellite?L=es_ES&c=Page&cid=1254735788994&p=1254735788994&pagename=CensoElectoral%2FINELayout.
 
 share
   [ mkPersist sqlSettings { mpsPrefixFields   = True
@@ -164,11 +167,12 @@ share
       ano                                    Int
       mes                                    Int
       -- Called 'vuelta' in < 250
-      vueltaOPregunta                        Int
+      vuelta                                 Int       -- 0 in referendums
+      pregunta                               Int       -- 0 in non-referendums
       codigoComunidad                        Int
       codigoProvincia                        Int
       codigoMunicipio                        Int
-      distritoMunicipal                      Int       -- 99 if < 250
+      distritoMunicipal                      Int       -- 99 if < 250 or total
       -- Called 'nombreMunicipio' in < 250
       nombreMunicipioODistrito               Text sqltype=varchar(100) -- Idx
       codigoDistritoElectoral                Int Maybe -- Nothing if < 250
@@ -179,8 +183,8 @@ share
       numeroMesas                            Int
       censoIne                               Int
       censoEscrutinio                        Int
-      censoResidentesExtranjeros             Int
-      votantesResidentesExtranejros          Int
+      censoResidentesExtranjeros             Int       -- CERE
+      votantesResidentesExtranejros          Int       -- CERE
       votantesPrimerAvanceParticipacion      Int
       votantesSegundoAvanceParticipacion     Int
       votosEnBlanco                          Int
@@ -192,7 +196,7 @@ share
       datosOficiales                         String sqltype=varchar(1)
       -- The following field must be Nothing if > 250
       tipoMunicipio                          String Maybe sqltype=varchar(2)
-      Primary tipoEleccion ano mes vueltaOPregunta codigoProvincia codigoMunicipio distritoMunicipal
+      Primary tipoEleccion ano mes vuelta pregunta codigoProvincia codigoMunicipio distritoMunicipal
       Foreign TiposEleccion fkey tipoEleccion
       deriving Show
 
@@ -203,7 +207,7 @@ share
       vuelta                                 Int
       codigoProvincia                        Int
       codigoMunicipio                        Int
-      distritoMunicipal                      Int       -- 99 if < 250
+      distritoMunicipal                      Int       -- 99 if < 250 or total
       codigoCandidatura                      Int
       -- Called 'votos' in > 250
       votosCandidatura                       Int
@@ -230,7 +234,8 @@ share
       tipoEleccion                           Int
       ano                                    Int
       mes                                    Int
-      vueltaOPregunta                        Int
+      vuelta                                 Int       -- 0 in referendums
+      pregunta                               Int       -- 0 in non-referendums
       codigoComunidad                        Int
       codigoProvincia                        Int
       codigoDistritoElectoral                Int
@@ -239,8 +244,8 @@ share
       numeroMesas                            Int
       censoIne                               Int
       censoEscrutinio                        Int
-      censoResidentesExtranjeros             Int
-      votantesResidentesExtranejros          Int
+      censoResidentesExtranjeros             Int       -- CERE
+      votantesResidentesExtranejros          Int       -- CERE
       votantesPrimerAvanceParticipacion      Int
       votantesSegundoAvanceParticipacion     Int
       votosEnBlanco                          Int
@@ -252,7 +257,7 @@ share
       datosOficiales                         String sqltype=varchar(1)
       -- codigoComunidad necessary in PKey because totals CERA by Comunidad have
       -- codigoProvincia = 99.
-      Primary tipoEleccion ano mes vueltaOPregunta codigoComunidad codigoProvincia codigoDistritoElectoral
+      Primary tipoEleccion ano mes vuelta pregunta codigoComunidad codigoProvincia codigoDistritoElectoral
       Foreign TiposEleccion fkey tipoEleccion
       deriving Show
 
@@ -273,23 +278,24 @@ share
       Foreign TiposEleccion fkey tipoEleccion
       deriving Show
 
-    DatosMesas                  -- 09xxaamm.DAT
+    DatosMesas                  -- 09xxaamm.DAT, includes CERA (except local el.)
       tipoEleccion                           Int
       ano                                    Int
       mes                                    Int
-      vueltaOPregunta                        Int
-      codigoComunidad                        Int
-      codigoProvincia                        Int
-      codigoMunicipio                        Int
-      distritoMunicipal                      Int
-      codigoSeccion                          String sqltype=varchar(4)
-      codigoMesa                             String sqltype=varchar(1)
+      vuelta                                 Int       -- 0 in referendums
+      pregunta                               Int       -- 0 in non-referendums
+      codigoComunidad                        Int -- 99 if CERA national total
+      codigoProvincia                        Int -- 99 if CERA nat. or aut. total
+      codigoMunicipio                        Int -- 999 if CERA
+      distritoMunicipal                      Int -- distritoElectoral if CERA, 9 if =codigoProvincia
+      codigoSeccion                          String sqltype=varchar(4) -- 0000 if CERA
+      codigoMesa                             String sqltype=varchar(1) -- "U" if CERA
       censoIne                               Int
       censoEscrutinio                        Int
-      censoResidentesExtranjeros             Int
-      votantesResidentesExtranejros          Int
-      votantesPrimerAvanceParticipacion      Int
-      votantesSegundoAvanceParticipacion     Int
+      censoResidentesExtranjeros             Int -- CERE. 0 if CERA
+      votantesResidentesExtranejros          Int -- CERE. 0 if CERA
+      votantesPrimerAvanceParticipacion      Int -- 0 if CERA
+      votantesSegundoAvanceParticipacion     Int -- 0 if CERA
       votosEnBlanco                          Int
       votosNulos                             Int
       votosACandidaturas                     Int
@@ -298,21 +304,21 @@ share
       datosOficiales                         String sqltype=varchar(1)
       -- codigoComunidad necessary in PKey because totals CERA by Comunidad have
       -- codigoProvincia = 99.
-      Primary tipoEleccion ano mes vueltaOPregunta codigoComunidad codigoProvincia codigoMunicipio distritoMunicipal codigoSeccion codigoMesa
+      Primary tipoEleccion ano mes vuelta pregunta codigoComunidad codigoProvincia codigoMunicipio distritoMunicipal codigoSeccion codigoMesa
       Foreign TiposEleccion fkey tipoEleccion
       deriving Show
 
-    VotosMesas                  -- 10xxaamm.DAT
+    VotosMesas                  -- 10xxaamm.DAT, includes CERA (except local el.)
       tipoEleccion                           Int
       ano                                    Int
       mes                                    Int
       vuelta                                 Int
-      codigoComunidad                        Int
-      codigoProvincia                        Int
-      codigoMunicipio                        Int
-      distritoMunicipal                      Int
-      codigoSeccion                          String sqltype=varchar(4)
-      codigoMesa                             String sqltype=varchar(1)
+      codigoComunidad                        Int -- 99 if CERA national total
+      codigoProvincia                        Int -- 99 if CERA nat. or aut. total
+      codigoMunicipio                        Int -- 999 if CERA
+      distritoMunicipal                      Int -- distritoElectoral if CERA, 9 if =codigoProvincia
+      codigoSeccion                          String sqltype=varchar(4) -- 0000 if CERA
+      codigoMesa                             String sqltype=varchar(1) -- "U" if CERA
       codigoCandidatura                      Int
       votos                                  Int
       -- codigoComunidad necessary in PKey because totals CERA by Comunidad
@@ -496,7 +502,8 @@ getCandidato mode =
 
 getDatosMunicipio :: Get DatosMunicipios
 getDatosMunicipio =
-  DatosMunicipios
+  (\t a m v_p -> if t == 1 then DatosMunicipios t a m 0 v_p
+                 else DatosMunicipios t a m v_p 0)
   <$> (snd <$> getTipoEleccion)
   <*> (snd <$> getAno)
   <*> (snd <$> getMes)
@@ -556,7 +563,8 @@ getVotosMunicipio =
 
 getDatosAmbitoSuperior :: Get DatosAmbitoSuperior
 getDatosAmbitoSuperior =
-  DatosAmbitoSuperior
+  (\t a m v_p -> if t == 1 then DatosAmbitoSuperior t a m 0 v_p
+                 else DatosAmbitoSuperior t a m v_p 0)
   <$> (snd <$> getTipoEleccion)
   <*> (snd <$> getAno)
   <*> (snd <$> getMes)
@@ -599,7 +607,8 @@ getVotosAmbitoSuperior =
 
 getDatosMesa :: Get DatosMesas
 getDatosMesa =
-  DatosMesas
+  (\t a m v_p -> if t == 1 then DatosMesas t a m 0 v_p
+                 else DatosMesas t a m v_p 0)
   <$> (snd <$> getTipoEleccion)
   <*> (snd <$> getAno)
   <*> (snd <$> getMes)
@@ -650,6 +659,7 @@ getDatosMunicipio250 =
   <*> (snd <$> getAno)
   <*> (snd <$> getMes)
   <*> (snd <$> getVueltaOPregunta)
+  <*> pure 0
   <*> (snd <$> getCodigoComunidad)
   <*> (snd <$> getCodigoProvincia)
   <*> (snd <$> getCodigoMunicipio)
