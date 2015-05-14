@@ -39,20 +39,21 @@ import           Control.Monad.Logger
 import           Control.Monad.Trans.Control
 import           Control.Monad.Trans.Reader
 import           Control.Monad.Trans.Resource
-import           Data.Binary
+import           Data.Binary                       hiding (get)
 import           Data.Binary.Get
 import qualified Data.ByteString.Char8             as BS8
 import           Data.Conduit
 import qualified Data.Conduit.Combinators          as CC
 import qualified Data.Conduit.List                 as CL
 import qualified Data.Conduit.Serialization.Binary as CS
+import           Data.List                         ((\\), partition)
 import           Data.Maybe
 import           Data.String
 import           Data.Text                         (Text)
 import qualified Data.Text                         as T
 import           Data.Time.Calendar
 import           Data.Time.LocalTime
-import           Database.Persist                  hiding (get)
+import           Database.Persist
 import           Database.Persist.Postgresql       hiding (get, getTableName)
 import           Database.Persist.TH
 import qualified Filesystem                        as F
@@ -96,17 +97,18 @@ share
       tipoEleccion                           Int
       codigoProvincia                        Int
       codigoDistritoElectoral                Int
-      provincia                              Text -- Idx
-      distritoElectoral                      Text -- Idx
+      provincia                              Text -- Idx FTS
+      distritoElectoral                      Text -- Idx FTS
       Primary tipoEleccion codigoProvincia codigoDistritoElectoral
-      Foreign TiposEleccion fkey tipoEleccion
+      Foreign TiposEleccion tipos_eleccion_fkey tipoEleccion
       deriving Show
-
-    -- No extra indexes for DistritosElectorales: this table is not expected to
-    -- be large.
 
     -- No indexes for (ano, mes), as we can search by (tipoEleccion, ano, mes)
     -- with PKey's indexes.
+
+    -- In the following DB tables DistritosElectorales cannot be used for
+    -- foreign keys, as codigoDistritoElectoral can take values 0 or 9 (see
+    -- doc/FICHEROS.txt).
 
     ProcesosElectorales         -- 02xxaamm.DAT
       tipoEleccion                           Int
@@ -121,7 +123,7 @@ share
       horaPrimerAvanceParticipacion          TimeOfDay
       horaSegundoAvanceParticipacion         TimeOfDay
       Primary tipoEleccion ano mes vuelta tipoAmbito ambito
-      Foreign TiposEleccion fkey tipoEleccion
+      Foreign TiposEleccion tipos_eleccion_fkey tipoEleccion
       deriving Show
 
     Candidaturas                -- 03xxaamm.DAT
@@ -129,13 +131,13 @@ share
       ano                                    Int
       mes                                    Int
       codigoCandidatura                      Int
-      siglas                                 Text sqltype=varchar(50)  -- Idx
-      denominacion                           Text sqltype=varchar(150) -- Idx
+      siglas                                 Text sqltype=varchar(50)  -- Idx FTS
+      denominacion                           Text sqltype=varchar(150) -- Idx FTS
       codigoCandidaturaProvincial            Int
       codigoCandidaturaAutonomico            Int
       codigoCandidaturaNacional              Int
       Primary tipoEleccion ano mes codigoCandidatura
-      Foreign TiposEleccion fkey tipoEleccion
+      Foreign TiposEleccion tipos_eleccion_fkey tipoEleccion
       deriving Show
 
     Candidatos                  -- 04xxaamm.DAT
@@ -143,23 +145,23 @@ share
       ano                                    Int
       mes                                    Int
       vuelta                                 Int
-      codigoProvincia                        Int
+      codigoProvincia                        Int       -- Idx (a)
       codigoDistritoElectoral                Int
-      codigoMunicipio                        Int
+      codigoMunicipio                        Int       -- Idx (a)
       codigoCandidatura                      Int
       numeroOrden                            Int
       tipoCandidato                          String sqltype=varchar(1)
-      nombreCandidato                        Text sqltype=varchar(75) -- Idx
-      nombrePila                             Text Maybe sqltype=varchar(25) -- Idx
-      primerApellido                         Text Maybe sqltype=varchar(25) -- Idx
-      segundoApellido                        Text Maybe sqltype=varchar(25) -- Idx
+      nombreCandidato                        Text sqltype=varchar(75)       -- Idx FTS
+      nombrePila                             Text Maybe sqltype=varchar(25) -- Idx FTS
+      primerApellido                         Text Maybe sqltype=varchar(25) -- Idx FTS
+      segundoApellido                        Text Maybe sqltype=varchar(25) -- Idx FTS
       independiente                          String sqltype=varchar(1)
       sexo                                   String sqltype=varchar(1)
       fechaNacimiento                        Day Maybe
       dni                                    Text Maybe sqltype=varchar(10) -- Idx
       elegido                                String sqltype=varchar(1)
       Primary tipoEleccion ano mes vuelta codigoProvincia codigoDistritoElectoral codigoMunicipio codigoCandidatura numeroOrden
-      Foreign TiposEleccion fkey tipoEleccion
+      Foreign TiposEleccion tipos_eleccion_fkey tipoEleccion
       deriving Show
 
     DatosMunicipios             -- 05xxaamm.DAT and 1104aamm.DAT
@@ -170,12 +172,12 @@ share
       vuelta                                 Int       -- 0 in referendums
       pregunta                               Int       -- 0 in non-referendums
       codigoComunidad                        Int
-      codigoProvincia                        Int
-      codigoMunicipio                        Int
+      codigoProvincia                        Int       -- Idx (a)
+      codigoMunicipio                        Int       -- Idx (a)
       distritoMunicipal                      Int       -- 99 if < 250 or total
       -- Called 'nombreMunicipio' in < 250
-      nombreMunicipioODistrito               Text sqltype=varchar(100) -- Idx
-      codigoDistritoElectoral                Int Maybe -- Nothing if < 250
+      nombreMunicipioODistrito               Text sqltype=varchar(100) -- Idx FTS
+      codigoDistritoElectoral                Int       -- 0 if < 250
       codigoPartidoJudicial                  Int
       codigoDiputacionProvincial             Int
       codigoComarca                          Int
@@ -197,7 +199,8 @@ share
       -- The following field must be Nothing if > 250
       tipoMunicipio                          String Maybe sqltype=varchar(2)
       Primary tipoEleccion ano mes vuelta pregunta codigoProvincia codigoMunicipio distritoMunicipal
-      Foreign TiposEleccion fkey tipoEleccion
+      Foreign TiposEleccion tipos_eleccion_fkey tipoEleccion
+      Foreign ComunidadesAutonomas comunidades_autonomas_fkey codigoComunidad
       deriving Show
 
     VotosMunicipios             -- 06xxaamm.DAT and 1204aamm.DAT
@@ -205,18 +208,18 @@ share
       ano                                    Int
       mes                                    Int
       vuelta                                 Int
-      codigoProvincia                        Int
-      codigoMunicipio                        Int
+      codigoProvincia                        Int       -- Idx (a)
+      codigoMunicipio                        Int       -- Idx (a)
       distritoMunicipal                      Int       -- 99 if < 250 or total
       codigoCandidatura                      Int
       -- Called 'votos' in > 250
       votosCandidatura                       Int
       numeroCandidatos                       Int
       -- The following field must be "" if > 250
-      nombreCandidato                        Text sqltype=varchar(75) -- Idx
-      nombrePila                             Text Maybe sqltype=varchar(25) -- Idx
-      primerApellido                         Text Maybe sqltype=varchar(25) -- Idx
-      segundoApellido                        Text Maybe sqltype=varchar(25) -- Idx
+      nombreCandidato                        Text sqltype=varchar(75)       -- Idx FTS
+      nombrePila                             Text Maybe sqltype=varchar(25) -- Idx FTS
+      primerApellido                         Text Maybe sqltype=varchar(25) -- Idx FTS
+      segundoApellido                        Text Maybe sqltype=varchar(25) -- Idx FTS
       independiente                          String Maybe sqltype=varchar(1)
       -- The 5 that follow: Nothing if > 250 (fechaNacimiento and dni can also
       -- be Noting in some < 250)
@@ -227,7 +230,7 @@ share
       votosCandidato                         Int    Maybe
       elegido                                String Maybe sqltype=varchar(1)
       Primary tipoEleccion ano mes vuelta codigoProvincia codigoMunicipio distritoMunicipal codigoCandidatura nombreCandidato
-      Foreign TiposEleccion fkey tipoEleccion
+      Foreign TiposEleccion tipos_eleccion_fkey tipoEleccion
       deriving Show
 
     DatosAmbitoSuperior         -- 07xxaamm.DAT
@@ -237,7 +240,7 @@ share
       vuelta                                 Int       -- 0 in referendums
       pregunta                               Int       -- 0 in non-referendums
       codigoComunidad                        Int
-      codigoProvincia                        Int
+      codigoProvincia                        Int       -- Idx
       codigoDistritoElectoral                Int
       nombreAmbitoTerritorial                Text sqltype=varchar(50)
       poblacionDerecho                       Int
@@ -258,7 +261,8 @@ share
       -- codigoComunidad necessary in PKey because totals CERA by Comunidad have
       -- codigoProvincia = 99.
       Primary tipoEleccion ano mes vuelta pregunta codigoComunidad codigoProvincia codigoDistritoElectoral
-      Foreign TiposEleccion fkey tipoEleccion
+      Foreign TiposEleccion tipos_eleccion_fkey tipoEleccion
+      Foreign ComunidadesAutonomas comunidades_autonomas_fkey codigoComunidad
       deriving Show
 
     VotosAmbitoSuperior         -- 08xxaamm.DAT
@@ -267,7 +271,7 @@ share
       mes                                    Int
       vuelta                                 Int
       codigoComunidad                        Int
-      codigoProvincia                        Int
+      codigoProvincia                        Int       -- Idx
       codigoDistritoElectoral                Int
       codigoCandidatura                      Int
       votos                                  Int
@@ -275,7 +279,7 @@ share
       -- codigoComunidad necessary in PKey because totals CERA by Comunidad have
       -- codigoProvincia = 99.
       Primary tipoEleccion ano mes vuelta codigoComunidad codigoProvincia codigoDistritoElectoral codigoCandidatura
-      Foreign TiposEleccion fkey tipoEleccion
+      Foreign TiposEleccion tipos_eleccion_fkey tipoEleccion
       deriving Show
 
     DatosMesas                  -- 09xxaamm.DAT, includes CERA (except local el.)
@@ -285,8 +289,8 @@ share
       vuelta                                 Int       -- 0 in referendums
       pregunta                               Int       -- 0 in non-referendums
       codigoComunidad                        Int -- 99 if CERA national total
-      codigoProvincia                        Int -- 99 if CERA nat. or aut. total
-      codigoMunicipio                        Int -- 999 if CERA
+      codigoProvincia                        Int -- Idx (a), 99 if CERA nat. or aut. total
+      codigoMunicipio                        Int -- Idx (a), 999 if CERA
       distritoMunicipal                      Int -- distritoElectoral if CERA, 9 if =codigoProvincia
       codigoSeccion                          String sqltype=varchar(4) -- 0000 if CERA
       codigoMesa                             String sqltype=varchar(1) -- "U" if CERA
@@ -305,7 +309,8 @@ share
       -- codigoComunidad necessary in PKey because totals CERA by Comunidad have
       -- codigoProvincia = 99.
       Primary tipoEleccion ano mes vuelta pregunta codigoComunidad codigoProvincia codigoMunicipio distritoMunicipal codigoSeccion codigoMesa
-      Foreign TiposEleccion fkey tipoEleccion
+      Foreign TiposEleccion tipos_eleccion_fkey tipoEleccion
+      Foreign ComunidadesAutonomas comunidades_autonomas_fkey codigoComunidad
       deriving Show
 
     VotosMesas                  -- 10xxaamm.DAT, includes CERA (except local el.)
@@ -314,8 +319,8 @@ share
       mes                                    Int
       vuelta                                 Int
       codigoComunidad                        Int -- 99 if CERA national total
-      codigoProvincia                        Int -- 99 if CERA nat. or aut. total
-      codigoMunicipio                        Int -- 999 if CERA
+      codigoProvincia                        Int -- Idx (a), 99 if CERA nat. or aut. total
+      codigoMunicipio                        Int -- Idx (a), 999 if CERA
       distritoMunicipal                      Int -- distritoElectoral if CERA, 9 if =codigoProvincia
       codigoSeccion                          String sqltype=varchar(4) -- 0000 if CERA
       codigoMesa                             String sqltype=varchar(1) -- "U" if CERA
@@ -324,7 +329,8 @@ share
       -- codigoComunidad necessary in PKey because totals CERA by Comunidad
       -- have codigoProvincia = 99.
       Primary tipoEleccion ano mes vuelta codigoComunidad codigoProvincia codigoMunicipio distritoMunicipal codigoSeccion codigoMesa codigoCandidatura
-      Foreign TiposEleccion fkey tipoEleccion
+      Foreign TiposEleccion tipos_eleccion_fkey tipoEleccion
+      Foreign ComunidadesAutonomas comunidades_autonomas_fkey codigoComunidad
       deriving Show
   |]
 
@@ -335,109 +341,130 @@ share
 insertStaticDataIntoDb :: (MonadResource m, MonadIO m, MonadCatch m)
                           =>
                           ReaderT SqlBackend m ()
-insertStaticDataIntoDb =
-  handleAll (expWhen "inserting rows") $ do
-    -- Reinsert all (after delete) on every execution
-    deleteWhere ([] :: [Filter TiposFichero])
-    mapM_ insert_
-      [ TiposFichero  1 "Control."
-      , TiposFichero  2 "Identificación del proceso electoral."
-      , TiposFichero  3 "Candidaturas."
-      , TiposFichero  4 "Candidatos."
-      , TiposFichero  5 "Datos globales de ámbito municipal."
-      , TiposFichero  6 "Datos de candidaturas de ámbito municipal."
-      , TiposFichero  7 "Datos globales de ámbito superior al municipio."
-      , TiposFichero  8 "Datos de candidaturas de ámbito superior al municipio."
-      , TiposFichero  9 "Datos globales de mesas."
-      , TiposFichero 10 "Datos de candidaturas de mesas."
-      , TiposFichero 11 "Datos globales de municipios menores de 250 habitantes (en  elecciones municipales)."
-      , TiposFichero 12 "Datos de candidaturas de municipios menores de 250 habitantes (en elecciones municipales)."
-      ]
-    deleteWhere ([] :: [Filter TiposEleccion])
-    mapM_ insert_
-      [ TiposEleccion  1 "Referéndum."
-      , TiposEleccion  2 "Elecciones al Congreso de los Diputados."
-      , TiposEleccion  3 "Elecciones al Senado."
-      , TiposEleccion  4 "Elecciones Municipales."
-      , TiposEleccion  5 "Elecciones Autonómicas."
-      , TiposEleccion  6 "Elecciones a Cabildos Insulares."
-      , TiposEleccion  7 "Elecciones al Parlamento Europeo."
-      , TiposEleccion 10 "Elecciones a Partidos Judiciales y Diputaciones Provinciales."
-      , TiposEleccion 15 "Elecciones a Juntas Generales."
-      ]
-    deleteWhere ([] :: [Filter ComunidadesAutonomas])
-    mapM_ insert_
-      [ ComunidadesAutonomas  1  "Andalucía"
-      , ComunidadesAutonomas  2  "Aragón"
-      , ComunidadesAutonomas  3  "Asturias"
-      , ComunidadesAutonomas  4  "Baleares"
-      , ComunidadesAutonomas  5  "Canarias"
-      , ComunidadesAutonomas  6  "Cantabria"
-      , ComunidadesAutonomas  7  "Castilla - La Mancha"
-      , ComunidadesAutonomas  8  "Castilla y León"
-      , ComunidadesAutonomas  9  "Cataluña"
-      , ComunidadesAutonomas 10  "Extremadura"
-      , ComunidadesAutonomas 11  "Galicia"
-      , ComunidadesAutonomas 12  "Madrid"
-      , ComunidadesAutonomas 13  "Navarra"
-      , ComunidadesAutonomas 14  "País Vasco"
-      , ComunidadesAutonomas 15  "Región de Murcia"
-      , ComunidadesAutonomas 16  "La Rioja"
-      , ComunidadesAutonomas 17  "Comunidad Valenciana"
-      , ComunidadesAutonomas 18  "Ceuta"
-      , ComunidadesAutonomas 19  "Melilla"
-      ]
-    deleteWhere ([] :: [Filter DistritosElectorales])
-    mapM_ insert_
-      [ DistritosElectorales  3  7 1 "Baleares" "MALLORCA"
-      , DistritosElectorales  3  7 2 "Baleares" "MENORCA"
-      , DistritosElectorales  3  7 3 "Baleares" "IBIZA-FORMENTERA"
-      , DistritosElectorales  3 35 1 "Las Palmas" "GRAN CANARIA"
-      , DistritosElectorales  3 35 2 "Las Palmas" "LANZAROTE"
-      , DistritosElectorales  3 35 3 "Las Palmas" "FUERTEVENTURA"
-      , DistritosElectorales  3 38 4 "Santa Cruz de Tenerife" "TENERIFE"
-      , DistritosElectorales  3 38 5 "Santa Cruz de Tenerife" "LA PALMA"
-      , DistritosElectorales  3 38 6 "Santa Cruz de Tenerife" "LA GOMERA"
-      , DistritosElectorales  3 38 7 "Santa Cruz de Tenerife" "EL HIERRO"
-
-      , DistritosElectorales  5  7 1 "Baleares" "MALLORCA"
-      , DistritosElectorales  5  7 2 "Baleares" "MENORCA"
-      , DistritosElectorales  5  7 3 "Baleares" "IBIZA"
-      , DistritosElectorales  5  7 4 "Baleares" "FORMENTERA"
-      , DistritosElectorales  5 30 1 "Murcia" "PRIMERA"
-      , DistritosElectorales  5 30 2 "Murcia" "SEGUNDA"
-      , DistritosElectorales  5 30 3 "Murcia" "TERCERA"
-      , DistritosElectorales  5 30 4 "Murcia" "CUARTA"
-      , DistritosElectorales  5 30 5 "Murcia" "QUINTA"
-      , DistritosElectorales  5 33 1 "Asturias" "ORIENTE"
-      , DistritosElectorales  5 33 2 "Asturias" "CENTRO"
-      , DistritosElectorales  5 33 3 "Asturias" "OCCIDENTE"
-      , DistritosElectorales  5 35 1 "Las Palmas" "GRAN CANARIA"
-      , DistritosElectorales  5 35 2 "Las Palmas" "LANZAROTE"
-      , DistritosElectorales  5 35 3 "Las Palmas" "FUERTEVENTURA"
-      , DistritosElectorales  5 38 4 "Santa Cruz de Tenerife" "TENERIFE"
-      , DistritosElectorales  5 38 5 "Santa Cruz de Tenerife" "LA PALMA"
-      , DistritosElectorales  5 38 6 "Santa Cruz de Tenerife" "LA GOMERA"
-      , DistritosElectorales  5 38 7 "Santa Cruz de Tenerife" "EL HIERRO"
-      , DistritosElectorales  6 35 1 "Las Palmas" "GRAN CANARIA"
-      , DistritosElectorales  6 35 2 "Las Palmas" "LANZAROTE"
-      , DistritosElectorales  6 35 3 "Las Palmas" "FUERTEVENTURA"
-      , DistritosElectorales  6 38 4 "Santa Cruz de Tenerife" "TENERIFE"
-      , DistritosElectorales  6 38 5 "Santa Cruz de Tenerife" "LA PALMA"
-      , DistritosElectorales  6 38 6 "Santa Cruz de Tenerife" "LA GOMERA"
-      , DistritosElectorales  6 38 7 "Santa Cruz de Tenerife" "EL HIERRO"
-      , DistritosElectorales 15  1 1 "Álava" "VITORIA-GASTEIZ"
-      , DistritosElectorales 15  1 2 "Álava" "AIRA-AYALA"
-      , DistritosElectorales 15  1 3 "Álava" "RESTO"
-      , DistritosElectorales 15 20 1 "Guipúzcoa" "DEBA-UROLA"
-      , DistritosElectorales 15 20 2 "Guipúzcoa" "BIDASOA-OYARZUN"
-      , DistritosElectorales 15 20 3 "Guipúzcoa" "DONOSTIALDEA"
-      , DistritosElectorales 15 20 4 "Guipúzcoa" "ORIA"
-      , DistritosElectorales 15 48 1 "Vizcaya" "BILBAO"
-      , DistritosElectorales 15 48 2 "Vizcaya" "ENCARTACIONES"
-      , DistritosElectorales 15 48 3 "Vizcaya" "DURANGO-ARRATIA"
-      , DistritosElectorales 15 48 4 "Vizcaya" "BUSTURIA-URIBE"
-      ]
+insertStaticDataIntoDb = do
+  -- Reinsert all (after delete) on every execution, as no foreign keys
+  -- are involved
+  deleteWhere ([] :: [Filter TiposFichero])
+  insertMany_
+    [ TiposFichero  1 "Control."
+    , TiposFichero  2 "Identificación del proceso electoral."
+    , TiposFichero  3 "Candidaturas."
+    , TiposFichero  4 "Candidatos."
+    , TiposFichero  5 "Datos globales de ámbito municipal."
+    , TiposFichero  6 "Datos de candidaturas de ámbito municipal."
+    , TiposFichero  7 "Datos globales de ámbito superior al municipio."
+    , TiposFichero  8 "Datos de candidaturas de ámbito superior al municipio."
+    , TiposFichero  9 "Datos globales de mesas."
+    , TiposFichero 10 "Datos de candidaturas de mesas."
+    , TiposFichero 11 "Datos globales de municipios menores de 250 habitantes (en  elecciones municipales)."
+    , TiposFichero 12 "Datos de candidaturas de municipios menores de 250 habitantes (en elecciones municipales)."
+    ]
+  updateMany (TiposEleccionKey . tiposEleccionTipoEleccion)
+    [ TiposEleccion  1 "Referéndum."
+    , TiposEleccion  2 "Elecciones al Congreso de los Diputados."
+    , TiposEleccion  3 "Elecciones al Senado."
+    , TiposEleccion  4 "Elecciones Municipales."
+    , TiposEleccion  5 "Elecciones Autonómicas."
+    , TiposEleccion  6 "Elecciones a Cabildos Insulares."
+    , TiposEleccion  7 "Elecciones al Parlamento Europeo."
+    , TiposEleccion 10 "Elecciones a Partidos Judiciales y Diputaciones Provinciales."
+    , TiposEleccion 15 "Elecciones a Juntas Generales."
+    ]
+  updateMany (ComunidadesAutonomasKey . comunidadesAutonomasCodigoComunidad)
+    [ ComunidadesAutonomas  1  "Andalucía"
+    , ComunidadesAutonomas  2  "Aragón"
+    , ComunidadesAutonomas  3  "Asturias"
+    , ComunidadesAutonomas  4  "Baleares"
+    , ComunidadesAutonomas  5  "Canarias"
+    , ComunidadesAutonomas  6  "Cantabria"
+    , ComunidadesAutonomas  7  "Castilla - La Mancha"
+    , ComunidadesAutonomas  8  "Castilla y León"
+    , ComunidadesAutonomas  9  "Cataluña"
+    , ComunidadesAutonomas 10  "Extremadura"
+    , ComunidadesAutonomas 11  "Galicia"
+    , ComunidadesAutonomas 12  "Madrid"
+    , ComunidadesAutonomas 13  "Navarra"
+    , ComunidadesAutonomas 14  "País Vasco"
+    , ComunidadesAutonomas 15  "Región de Murcia"
+    , ComunidadesAutonomas 16  "La Rioja"
+    , ComunidadesAutonomas 17  "Comunidad Valenciana"
+    , ComunidadesAutonomas 18  "Ceuta"
+    , ComunidadesAutonomas 19  "Melilla"
+    , ComunidadesAutonomas 99  "TOTAL NACIONAL C.E.R.A."
+    ]
+  -- Reinsert all (after delete) on every execution, as no foreign keys
+  -- are involved
+  deleteWhere ([] :: [Filter DistritosElectorales])
+  insertMany_
+    [ DistritosElectorales  3  7 1 "Baleares" "MALLORCA"
+    , DistritosElectorales  3  7 2 "Baleares" "MENORCA"
+    , DistritosElectorales  3  7 3 "Baleares" "IBIZA-FORMENTERA"
+    , DistritosElectorales  3 35 1 "Las Palmas" "GRAN CANARIA"
+    , DistritosElectorales  3 35 2 "Las Palmas" "LANZAROTE"
+    , DistritosElectorales  3 35 3 "Las Palmas" "FUERTEVENTURA"
+    , DistritosElectorales  3 38 4 "Santa Cruz de Tenerife" "TENERIFE"
+    , DistritosElectorales  3 38 5 "Santa Cruz de Tenerife" "LA PALMA"
+    , DistritosElectorales  3 38 6 "Santa Cruz de Tenerife" "LA GOMERA"
+    , DistritosElectorales  3 38 7 "Santa Cruz de Tenerife" "EL HIERRO"
+    , DistritosElectorales  5  7 1 "Baleares" "MALLORCA"
+    , DistritosElectorales  5  7 2 "Baleares" "MENORCA"
+    , DistritosElectorales  5  7 3 "Baleares" "IBIZA"
+    , DistritosElectorales  5  7 4 "Baleares" "FORMENTERA"
+    , DistritosElectorales  5 30 1 "Murcia" "PRIMERA"
+    , DistritosElectorales  5 30 2 "Murcia" "SEGUNDA"
+    , DistritosElectorales  5 30 3 "Murcia" "TERCERA"
+    , DistritosElectorales  5 30 4 "Murcia" "CUARTA"
+    , DistritosElectorales  5 30 5 "Murcia" "QUINTA"
+    , DistritosElectorales  5 33 1 "Asturias" "ORIENTE"
+    , DistritosElectorales  5 33 2 "Asturias" "CENTRO"
+    , DistritosElectorales  5 33 3 "Asturias" "OCCIDENTE"
+    , DistritosElectorales  5 35 1 "Las Palmas" "GRAN CANARIA"
+    , DistritosElectorales  5 35 2 "Las Palmas" "LANZAROTE"
+    , DistritosElectorales  5 35 3 "Las Palmas" "FUERTEVENTURA"
+    , DistritosElectorales  5 38 4 "Santa Cruz de Tenerife" "TENERIFE"
+    , DistritosElectorales  5 38 5 "Santa Cruz de Tenerife" "LA PALMA"
+    , DistritosElectorales  5 38 6 "Santa Cruz de Tenerife" "LA GOMERA"
+    , DistritosElectorales  5 38 7 "Santa Cruz de Tenerife" "EL HIERRO"
+    , DistritosElectorales  6 35 1 "Las Palmas" "GRAN CANARIA"
+    , DistritosElectorales  6 35 2 "Las Palmas" "LANZAROTE"
+    , DistritosElectorales  6 35 3 "Las Palmas" "FUERTEVENTURA"
+    , DistritosElectorales  6 38 4 "Santa Cruz de Tenerife" "TENERIFE"
+    , DistritosElectorales  6 38 5 "Santa Cruz de Tenerife" "LA PALMA"
+    , DistritosElectorales  6 38 6 "Santa Cruz de Tenerife" "LA GOMERA"
+    , DistritosElectorales  6 38 7 "Santa Cruz de Tenerife" "EL HIERRO"
+    , DistritosElectorales 15  1 1 "Álava" "VITORIA-GASTEIZ"
+    , DistritosElectorales 15  1 2 "Álava" "AIRA-AYALA"
+    , DistritosElectorales 15  1 3 "Álava" "RESTO"
+    , DistritosElectorales 15 20 1 "Guipúzcoa" "DEBA-UROLA"
+    , DistritosElectorales 15 20 2 "Guipúzcoa" "BIDASOA-OYARZUN"
+    , DistritosElectorales 15 20 3 "Guipúzcoa" "DONOSTIALDEA"
+    , DistritosElectorales 15 20 4 "Guipúzcoa" "ORIA"
+    , DistritosElectorales 15 48 1 "Vizcaya" "BILBAO"
+    , DistritosElectorales 15 48 2 "Vizcaya" "ENCARTACIONES"
+    , DistritosElectorales 15 48 3 "Vizcaya" "DURANGO-ARRATIA"
+    , DistritosElectorales 15 48 4 "Vizcaya" "BUSTURIA-URIBE"
+    ]
+  where
+    updateMany
+      :: forall a m.
+         (MonadIO m, PersistEntity a, PersistEntityBackend a ~ SqlBackend)
+         =>
+         (a -> Key a) -> [a] -> ReaderT SqlBackend m ()
+    updateMany keyFunc newRecords = do
+      let newKeys = map keyFunc newRecords
+      -- The following throws an exception (a bug in Persistent?):
+      -- droppedKeys <- selectKeysList [persistIdField /<-. newKeys] []
+      oldKeys <- selectKeysList ([] :: [Filter a]) []
+      let droppedKeys = oldKeys \\ newKeys
+      forM_ droppedKeys $ \key ->
+        liftIO $ putStrLn $ "Warning: " <> show key <> " deprecated but needs \
+                            \to be deleted manually to not broke foreign keys."
+      -- The following throws an exception (a bug in Persistent?):
+      -- zipWithM_ repsert newKeys newRecords
+      let (recordsToUpd, recordsToIns) = partition (flip elem oldKeys . keyFunc) newRecords
+      insertMany_ recordsToIns
+      zipWithM_ replace (map keyFunc recordsToUpd) recordsToUpd
+      return ()
 
 
 -- |
@@ -513,7 +540,7 @@ getDatosMunicipio =
   <*> (snd <$> getCodigoMunicipio)
   <*> (snd <$> getDistritoMunicipal)
   <*> getNombreMunicipioODistrito
-  <*> (Just . snd <$> getCodigoDistritoElectoral)
+  <*> (snd <$> getCodigoDistritoElectoral)
   <*> (snd <$> getCodigoPartidoJudicial)
   <*> (snd <$> getCodigoDiputacionProvincial)
   <*> (snd <$> getCodigoComarca)
@@ -659,13 +686,13 @@ getDatosMunicipio250 =
   <*> (snd <$> getAno)
   <*> (snd <$> getMes)
   <*> (snd <$> getVueltaOPregunta)
-  <*> pure 0
+  <*> pure 0                    -- pregunta
   <*> (snd <$> getCodigoComunidad)
   <*> (snd <$> getCodigoProvincia)
   <*> (snd <$> getCodigoMunicipio)
   <*> pure 99                   -- distritoMunicipal
   <*> getNombreMunicipio
-  <*> pure Nothing              -- codigoDistritoElectoral
+  <*> pure 0                    -- codigoDistritoElectoral
   <*> (snd <$> getCodigoPartidoJudicial)
   <*> (snd <$> getCodigoDiputacionProvincial)
   <*> (snd <$> getCodigoComarca)
@@ -1084,7 +1111,7 @@ dbConnOptions =
     <> short 'p'
     <> metavar "PORT"
     <> help "Passes parameter port=PORT to database connection"
-    <> value "5432"
+    <> value "5432"             -- Default postgresql port
   )
   <*> option (str >>= param "dbname")
   ( long "dbname"
@@ -1134,7 +1161,7 @@ main = execParser options' >>= \(Options c g migrFlag interFlag filePaths) ->
         liftIO $ putStrLn "Migrating database"
         runMigration migrateAll
         liftIO $ putStrLn "Inserting static data"
-        insertStaticDataIntoDb
+        insertStaticDataIntoDb `onException` liftIO (putStrLn "Uncaught exception")
       DonTMigrate -> do
         liftIO $ putStrLn "Skipping database migration"
         liftIO $ putStrLn "Skipping static data insertion"
@@ -1150,6 +1177,7 @@ main = execParser options' >>= \(Options c g migrFlag interFlag filePaths) ->
       parallel_ ioPool [readFileRefIntoDb g dbPool fileRef | fileRef <- fileRefs]
 
   where
+    -- TODO: adapt poolSize to actual max_connections
     options' = info (helper <*> options) helpMessage
     poolSize = 80             -- PG's max_connections = 100 by default in Debian
 
